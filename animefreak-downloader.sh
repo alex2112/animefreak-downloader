@@ -30,14 +30,11 @@ function path1a {
 	while :
 	do
 	clear
-	# Get all series titles and urls into a file based on search term.
-	grep -o '<a href="/watch..*</a>' book.htm |sed 's/<a href="/http:\/\/www.animefreak.tv/'| sed 's/">/   /' |sed 's/<\/a>//' | grep -i "   .*$searchterm" 2>/dev/null > urls_titles
+	# Get all series titles and urls into book_search based on search term.
+	grep -o '<a href="/watch..*</a>' book.htm |sed 's/<a href="/http:\/\/www.animefreak.tv/'| sed 's/">/ /' |sed 's/<\/a>//' | grep -i " .*$searchterm" 2>/dev/null > book_search
 	
-	# Make a urls only file based on search term again.
-	cat urls_titles | awk {'print $1'} > urls_only
-
 	# Print results to screen.
-	cat urls_titles | sed 's/http..*   //' |awk '{print NR, $0}' |column
+	grep -o " .*$" book_search | awk '{print NR, $0}' | column
 
 		echo "****************************************************************************"
 		echo "* Type a number to select a series or (s) to search again then press enter.*"
@@ -64,26 +61,19 @@ function path1a {
 			clear
 			continue
 		else
-			wget -q `sed -n $(echo $num)p urls_only` -O series
+			animetitle="`sed -n $(echo $num)p book_search | grep -o " .*$"`"
+			sed -n $(echo $num)p book_search | sed 's/ .*$//' | wget -q -i - -O - | grep -i leaf |grep -o '<a href..*</a>' | sed 's/<a href="/http:\/\/www.animefreak.tv/' | sed 's/">/ /' |sed 's/<\/a>//' |awk ' !x[$0]++' > series_episodes
 			break
 		fi
 	done
 }
 
 function path1b {
-	# Get anime title
-	animetitle="`grep -o "<title>..*|" series |sed 's/<title>Watch //' |sed 's/ Online |//'`"
-	# Get episodes urls and titles.
-	grep -i leaf series |grep -o '<a href..*</a>' | sed 's/<a href="/http:\/\/www.animefreak.tv/' | sed 's/">/ /' |sed 's/<\/a>//' |awk ' !x[$0]++' > episodes_url_titles
-	# Get urls only to file.
-	awk {'print $1'} episodes_url_titles > episodes_url_only
-
 	while :
 	do
 		clear
 		echo "$animetitle"
-		# Print numbered episodes to screen.
-		grep -o -i " ..*$" episodes_url_titles | awk '{print NR, $0}' |column  -t |more
+		grep -o -i " .*$" series_episodes | awk '{print NR, $0}' |column  -t |more
 		echo " Select an episode, press enter to quit, b to go back."
 
 		read num
@@ -94,7 +84,6 @@ function path1b {
 		elif [ $num == b ]
 		then
 			path1a
-			break
 		elif ! [[ "$num" =~ ^[0-9]+$ ]] ;
 		then
 			echo "Not a number"
@@ -102,7 +91,10 @@ function path1b {
 			clear
 			continue
 		else
-			wget -q `sed -n $(echo $num)p episodes_url_only` -O ep
+			filename="`sed -n $(echo $num)p series_episodes | grep -o ' .*$' | sed 's/ //' | sed 's/ /_/g' | sed 's/$/.mp4/'`"
+			sed -n $(echo $num)p series_episodes | sed 's/ .*$//' | wget -q -i - -O ep
+			grep "%3Fst%3D" ep > mirrors
+                        grep "var temp" ep > mirrors_alt
 			break
 		fi
 	done
@@ -111,12 +103,12 @@ function path1b {
 function path2 {
 	while :
 	do
-		# Print the titles on screen.
-		grep -o '<a href="/watch..*</a>' freak_tracker.htm |grep -m 20 -i episode | grep -i -o '>..*</a>' |sed 's/>//' |sed 's/<\/a>//' |awk '{print NR, $0}'
+		# Print results to screen
+		grep -o " .*$" latest | awk '{print NR, $0}' | more
 
-		echo "*******************************************************************"
-		echo "* Select a number from 1-20 and press enter or just enter to quit *"
-		echo "*******************************************************************"
+		echo "*********************************************************"
+		echo "* Select a number and press enter or just enter to quit *"
+		echo "*********************************************************"
 
 		read num
 
@@ -131,23 +123,24 @@ function path2 {
 			clear
 			continue
 		else
-			wget -q `sed -n $(echo $num)p 20_eps` -O ep
+			filename="`sed -n $(echo $num)p latest | grep -o ' .*$' | sed 's/ //' | sed 's/ /_/g' | sed 's/$/.mp4/'`"
+			sed -n $(echo $num)p latest | sed 's/ .*$//' | wget -q -i - -O ep
+			grep "%3Fst%3D" ep > mirrors
+			grep "var temp" ep > mirrors_alt
 			break
 		fi
 	done
 }
 
 function mirror {
-grep "%3Fst%3D" ep > mirrors
 mirrors="`wc mirrors |awk {'print $1'}`"
 if [ $mirrors -eq 1 ]
 then
-	sed -n '1p' mirrors > single_mirror
+	mirror_num=1
+	video_url
 elif [ $mirrors -eq 0 ]
 then
-	echo "Seems i can't find a valid mirror for this episode. :("
-	sleep 1
-	continue
+	video_url2
 else
 	while :
 	do
@@ -169,18 +162,25 @@ else
 		echo "Not a valid number"
 		continue
 	else
-		sed -n $(echo $mirror_num)p mirrors > single_mirror
+		video_url
 		break
 	fi
 	done
 fi	
 }
 
-function parser {
-ip="`grep "%3Fst%3D" single_mirror | grep -o "http..*%2F" | sed 's/http%3A%2F%2F//' |sed 's/%2F//'`"
-title="`grep "%3Fst%3D" single_mirror | grep -o "%2F.*%3Fst%3D" | sed 's/%2F%2F.*%2F//' | sed 's/%3Fst%3D//' |sed 's/+/ /g'`"
-key="`grep -o "%3Fst%3D.*3D.........." single_mirror | sed 's/%3F/?/' | sed 's/%3D/=/g'|sed 's/%26/\&/g'`"
-filename="`grep -o "<title>..*|" ep |sed 's/<title>Watch //' |sed 's/ Online |/.mp4/' |sed 's/ /_/g'`"
+function video_url {
+ip="`sed -n $(echo $mirror_num)p mirrors | grep -o "http..*%2F" | sed 's/http%3A%2F%2F//' |sed 's/%2F//'`"
+title="`sed -n $(echo $mirror_num)p mirrors | grep -o "%2F.*%3Fst%3D" | sed 's/%2F%2F.*%2F//' | sed 's/%3Fst%3D//' |sed 's/+/ /g'`"
+key="`sed -n $(echo $mirror_num)p mirrors | grep -o "%3Fst%3D.*3D.........." | sed 's/%3F/?/' | sed 's/%3D/=/g'|sed 's/%26/\&/g'`"
+}
+
+function video_url2 {
+ip="78.152.42.206"
+title="`grep 'var temp' mirrors_alt | grep -o -i 'file%3D.*.%26e' | sed 's/file%3D//' | sed 's/%26e//' | sed 's/+/ /g'`"
+st="`grep 'var temp' mirrors_alt | grep -i -o 'st%3d.*frame%3E%0D' | sed 's/st%3D//' |sed 's/%22%3E%3C%2Fiframe%3E%0D//'`"
+e="`grep 'var temp' mirrors_alt | grep -i -o '%26e%3d.*%26st' | sed 's/%26e%3D//' |sed 's/%26st//'`"
+key="?st=$st&e=$e"
 }
 
 function downloader {
@@ -192,6 +192,7 @@ read choice
 
 if [ -z $choice ]
 then
+	echo "exit"
 	exit
 elif [ "$choice" == s ]
 then
@@ -210,24 +211,7 @@ fi
 done
 }
 
-function jump_back {
-echo
-echo "Download another video? Press (y) for yes or just enter to exit"
-read choice
-if [ -z $choice ]
-then
-	echo "exit" 
-	exit
-elif [ "$choice" == y ]
-then
-	continue
-else
-	echo "exit"
-	exit
-fi
-}
-
-# Main if_then_else
+# Main
 if [ -n "$searchterm" ] 
 then
 	if [ -f book.htm ]
@@ -242,21 +226,14 @@ then
 	do
 		path1b
 		mirror
-		parser
 		downloader
-		jump_back
 	done
 else
-	wget -q 'http://www.animefreak.tv/tracker' -O freak_tracker.htm
-	clear
-	# Save 20 latest episodes urls to file.
-	grep -o '<a href="/watch..*"' freak_tracker.htm |grep -m 20 -i episode |sed 's/<a href="/http:\/\/www.animefreak.tv/' |sed 's/"//'  > 20_eps
+	wget -q 'http://www.animefreak.tv/tracker' -O - | grep -o '"/watch.*</a>' | grep -i -e episode -e movie | sed 's/"/http:\/\/www.animefreak.tv/' |sed 's/">/ /' |sed 's/<\/a>//' > latest
 	while :
 	do
 		path2
 		mirror
-		parser
 		downloader
-		jump_back
 	done
 fi
