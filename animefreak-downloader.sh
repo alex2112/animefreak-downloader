@@ -95,7 +95,7 @@ do
 	elif [ "$choice" == s ]
 	then
 		echo "Now saving $filename to $download_path"
-		wget -U "$user_agent" "$url" -O $download_path/$filename 2>&1 | tee -a log.txt
+		wget -U "$user_agent" "$url" -O $download_path/$filename 2>&1
 		break
 	elif [ "$choice" == v ]
 	then
@@ -160,7 +160,7 @@ then
 	if ! [ -s book.htm ]
 	then 
 		echo "Getting anime catalog."
-		wget -U "$user_agent" "http://www.animefreak.tv/book" -O book.htm
+		wget -nv -U "$user_agent" "http://www.animefreak.tv/book" -O book.htm
 	fi
 	while :
 	do
@@ -177,7 +177,7 @@ then
 			elif [ "$num_of_results" -eq 1 ]
 			then
 				series=1
-				episodes=$(echo "$list" | sed -n "$series"p | sed 's/ .*$//' | wget -U "$user_agent" -i - -O - | grep -i leaf | \
+				episodes=$(echo "$list" | sed -n "$series"p | sed 's/ .*$//' | wget -nv -U "$user_agent" -i - -O - | grep -i leaf | \
 				grep -o '<a href..*</a>' | sed -e 's/<a href="/http:\/\/www.animefreak.tv/' -e 's/">/ /' -e 's/<\/a>//' | awk ' !x[$0]++')
 				break
 			else
@@ -207,7 +207,7 @@ then
 					continue
 				else
 					echo "Getting episode list."
-					episodes=$(echo "$list" | sed -n "$series"p | sed 's/ .*$//' | wget -U "$user_agent" -i - -O - | grep -i leaf | \
+					episodes=$(echo "$list" | sed -n "$series"p | sed 's/ .*$//' | wget -nv -U "$user_agent" -i - -O - | grep -i leaf | \
 					grep -o '<a href..*</a>' | sed -e 's/<a href="/http:\/\/www.animefreak.tv/' -e 's/">/ /' -e 's/<\/a>//' | \
 					awk ' !x[$0]++')
 					break
@@ -217,7 +217,7 @@ then
 		while :
 		do
 			clear
-			echo "$episodes" | grep -o -i " .*$" | awk '{print NR, $0}' | column  -t | more
+			echo "$episodes" | grep -o -i " .*$" | awk '{print NR, $0}' | column  -t | more 2>&1
 			if [ "$num_of_results" -eq 1 ]
 			then
 				read -p "Select an episode, (s) to make a new search, (q) to quit. >> " ep 2>&1
@@ -273,13 +273,13 @@ then
 	done
 else
 	echo "Getting latest episodes."
-	episodes=$(wget -U "$user_agent" 'http://www.animefreak.tv/tracker' -O - | grep -o '"/watch.*</a>' | grep -i -e episode -e movie | \
+	episodes=$(wget -nv -U "$user_agent" 'http://www.animefreak.tv/tracker' -O - | grep -o '"/watch.*</a>' | grep -i -e episode -e movie | \
 	sed -e 's/"/http:\/\/www.animefreak.tv/' -e 's/">/ /' -e 's/<\/a>//')
 	while :
 	do
 		clear
 		num_of_results=$(echo "$episodes" | wc | awk '{print $1}')
-		echo "$episodes" | grep -o " .*$" | awk '{print NR, $0}' | more
+		echo "$episodes" | grep -o " .*$" | awk '{print NR, $0}' | more 2>&1
 		read -p "Type a number to select an episode and press enter. Press (q) to quit. >> " ep 2>&1
 		if [ "$ep" == q ]
 		then
