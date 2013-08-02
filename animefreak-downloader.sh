@@ -9,9 +9,10 @@ user_agent="Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:22.0) Gecko/20100101 Firefo
 search_term=$@ # DO NOT TOUCH THIS!
 
 # Change directory
-cd $temp_path || mkdir -p $temp_path && cd $temp_path
+cd $temp_path 2>/dev/null || mkdir -p $temp_path && cd $temp_path
 # Enable error loging to file
 exec 2>log.txt
+
 
 mirror_detect() {
 # Get a episode title
