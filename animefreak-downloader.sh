@@ -23,7 +23,7 @@ filename=$(echo "$episodes" | sed -n "$ep"p | grep -o ' .*$' | sed -e 's/ //' -e
 pass1=$(echo "$episodes" | sed -n "$ep"p | sed 's/ .*$//' | wget -nv -U "$user_agent" -i - -O - | grep -e Fst -e upload2 -e mp4upload -e videobam)
 # Mirror detection pass 2
 url_decoder "$pass1" | grep -o "http.*animefreak.tv.*&st=......................" > mirrors.txt #animefreak
-url_decoder "$pass1" | grep -o '"http.*upload2.*embed/.*"' | sed 's/"//g' >> mirrors.txt #upload2.com
+url_decoder "$pass1" | grep -o '"http.*upload2.*embed/.*$' | sed -e 's/"//g' -e 's/><\/iframe.*$//' >> mirrors.txt #upload2.com
 url_decoder "$pass1" | grep -o "http.*mp4upload.*\.html" >> mirrors.txt #mp4upload.com
 url_decoder "$pass1" | grep -o "http.*?st=.*&e=.........." >> mirrors.txt #direct
 url_decoder "$pass1" | grep -o "http://videobam..*" | sed 's/"/ /g' | awk {'print $1'} >> mirrors.txt #videobam
