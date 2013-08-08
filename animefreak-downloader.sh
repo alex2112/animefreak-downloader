@@ -90,8 +90,8 @@ then
 	url=$(echo "$downlink" | grep -o "http..*'" | sed "s/'//")
 elif [ "$type_of_mirror" == videobam ]
 then
-	downlink=$(wget -nv -U "$user_agent" "$(echo "$mirrors" | sed -n "$mirror_num"p)" -O - | grep low:)
-	url=$(echo "$downlink" | grep -o "http.*" | sed "s/[,']//g")
+	downlink=$(wget -nv -U "$user_agent" "$(echo "$mirrors" | sed -n "$mirror_num"p)" -O - | grep "var player_config")
+	url=$(echo "$downlink" | sed -e 's/[\]//g' -e 's/[",]/ /g' | grep -o "http.*" | awk {'print $12'})
 else
 	type_of_mirror=direct
 	url=$(echo "$mirrors" | sed -n "$mirror_num"p)
