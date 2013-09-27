@@ -1,9 +1,9 @@
 #!/bin/bash
 
 ### CONFIGURATION ###
-download_path=$HOME/Downloads # Defaults: $HOME/Downloads
-temp_path=/tmp/animefreak_downloader # Defaults: /tmp/animefreak_downloader
-user_agent="Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:22.0) Gecko/20100101 Firefox/22.0"
+download_path=$HOME/Downloads # Default: $HOME/Downloads
+temp_path=/tmp/animefreak_downloader # Default: /tmp/animefreak_downloader
+user_agent="Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:24.0) Gecko/20100101 Firefox/24.0"
 ### END CONFIGURATION ###
 
 search_term=$@ # DO NOT TOUCH THIS!
@@ -15,10 +15,12 @@ exec 2>log.txt
 
 
 mirror_detect() {
-# Get a episode title
+# episode title
 episode_title=$(echo "$episodes" | sed -n "$ep"p | grep -o ' .*$' | sed 's/ //')
-# Get filename
-filename=$(echo "$episodes" | sed -n "$ep"p | grep -o ' .*$' | sed -e 's/ //' -e 's/ /_/g' -e 's/$/.mp4/')
+# Directory name
+directory=$(echo "$episodes" | sed -n "$ep"p | grep -o ' .*$' | sed -e 's/ //' -e 's/://g' -e 's/ Episode .*$//')
+# file name
+filename=$(echo "$episodes" | sed -n "$ep"p | grep -o ' .*$' | sed -e 's/ //' -e 's/://g' -e 's/ Episode /.ep/' -e 's/$/.mp4/')
 # Mirror detection pass 1
 pass1=$(echo "$episodes" | sed -n "$ep"p | sed 's/ .*$//' | wget -nv -U "$user_agent" -i - -O - | grep -e Fst -e upload2 -e mp4upload -e videobam)
 # Mirror detection pass 2
@@ -31,7 +33,7 @@ url_decoder "$pass1" | grep -o "http://videobam..*" | sed 's/"/ /g' | awk {'prin
 mirrors=$(sort -u mirrors.txt | sed '/^$/d')
 # Count how many mirrors detected
 mirror_count=$(echo "$mirrors" | wc  | awk {'print $1'})
-# For dubbuging
+# For debugging
 echo "INFO: Number of mirrors detected $mirror_count which are: " >> log.txt
 echo "$mirrors" >> log.txt
 }
@@ -96,7 +98,7 @@ else
 	type_of_mirror=direct
 	url=$(echo "$mirrors" | sed -n "$mirror_num"p)
 fi
-# For debbuging
+# For debugging
 echo "INFO: $type_of_mirror path chosen with url $url" >> log.txt
 }
 
@@ -118,8 +120,9 @@ do
 		break
 	elif [ "$choice" == s ]
 	then
-		echo "Now saving $filename to $download_path"
-		wget -U "$user_agent" "$url" -O $download_path/$filename 2>&1
+		echo "Now saving $filename to $download_path/$directory"
+		mkdir -p "$download_path/$directory"
+		wget -nc -U "$user_agent" "$url" -O "$download_path/$directory/$filename" 2>&1
 		break
 	elif [ "$choice" == v ]
 	then
@@ -248,7 +251,7 @@ then
 		done
 		while :
 		do
-			# Print episodes tou screen
+			# Print episodes to screen
 			clear
 			echo "$episodes" | grep -o -i " .*$" | awk '{print NR, $0}' | column  -t | more 2>&1
 			if [ "$num_of_results" -eq 1 ]
