@@ -18,13 +18,13 @@ PAGE_SCRAPER() {
 # Get episode title, directory name, file name
 TITLE=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/Online |//')
 DIR=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/ Episode .*|//' -e 's/^ *//')
-FILENAME=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/ Online |//' -e 's/://g' -e 's/ Episode /.ep/' -e 's/$/.mp4/' -e 's/^ *//')
+FILENAME=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/ Online |//' -e 's/ Episode /.ep/' -e 's/$/.mp4/' -e 's/^ *//')
 
 # Mirror detection
 PASS_1=$(echo "$PAGE" | grep -e stream.php -e Fst -e upload2 -e mp4upload -e videobam)
 URL_DEC "$PASS_1" | grep -o "http.*animefreak.tv.*&st=......................" > mirrors.txt #animefreak
 URL_DEC "$PASS_1" | grep -o '"http.*upload2.*embed/.*$' | sed -e 's/"//g' -e 's/><\/iframe.*$//' >> mirrors.txt #upload2.com
-URL_DEC "$PASS_1" | grep -o "http.*mp4upload.*\.html" >> mirrors.txt #mp4upload.com
+URL_DEC "$PASS_1" | grep -o "http://www.mp4upload.*\.html" >> mirrors.txt #mp4upload.com
 URL_DEC "$PASS_1" | grep -o "http.*?st=.*&e=.........." >> mirrors.txt #direct
 URL_DEC "$PASS_1" | grep -o "http://videobam..*" | sed 's/"/ /g' | awk {'print $1'} >> mirrors.txt #videobam
 
@@ -110,7 +110,7 @@ fi
 DOWNLOADER() {
 echo
 mkdir -p "$DOWNLOAD_PATH/$DIR"
-wget -nc -U "$USER_AGENT" "$URL" -O "$DOWNLOAD_PATH/$DIR/$FILENAME" 2>&1
+wget -U "$USER_AGENT" "$URL" -O "$DOWNLOAD_PATH/$DIR/$FILENAME" 2>&1
 }
 
 URL_DEC() {
