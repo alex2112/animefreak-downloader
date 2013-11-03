@@ -3,7 +3,7 @@
 ### CONFIGURATION ###
 DOWNLOAD_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_downloader # Default: /tmp/animefreak_downloader
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:24.0) Gecko/20100101 Firefox/24.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:25.0) Gecko/20100101 Firefox/25.0"
 ### END CONFIGURATION ###
 
 SEARCH=$@
@@ -103,7 +103,6 @@ else
 		EP=$(expr $EP + 1)
 	done
 	read -p "Done! Press enter to continue." 2>&1
-	continue
 fi
 }
 
@@ -275,6 +274,7 @@ do
 	then
 		EP=1
 		BATCH
+		continue
 	fi
 	INPUT_CHECK
 
@@ -376,7 +376,6 @@ do
 	# If only one mirror available go back
 	if [ "$M_COUNT" -eq 1 ]
 	then
-		read -p "Done! Press enter to continue." 2>&1
 		break
 
 	# Or try a different mirror
