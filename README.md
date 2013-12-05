@@ -2,7 +2,8 @@ animefreak-downloader
 ================
 Interactive shell script for downloading or viewing videos from animefreak.tv.
 
-Download modes include: single episode, entire series or range of episodes.
+Downloading of single episodes, range of episodes or entire series is possible.
+
 Calling the script without arguments will list the latest uploaded videos (max 50 entries).
 Append a search term after the command to "grep" the entire catalog of Animefreak.
 For example:

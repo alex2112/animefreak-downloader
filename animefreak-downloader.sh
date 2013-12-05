@@ -21,15 +21,17 @@ DIR=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' 
 FILENAME=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/ Online |//' -e 's/ Episode /.ep/' -e 's/$/.mp4/' -e 's/^ *//')
 
 # Mirror detection
-PASS_1=$(echo "$PAGE" | grep -e stream.php -e Fst -e upload2 -e mp4upload -e videobam)
-URL_DEC "$PASS_1" | grep -o "http.*animefreak.tv.*&st=......................" > mirrors.txt #animefreak
-URL_DEC "$PASS_1" | grep -o '"http.*upload2.*embed/.*$' | sed -e 's/"//g' -e 's/><\/iframe.*$//' >> mirrors.txt #upload2.com
-URL_DEC "$PASS_1" | grep -o "http://www.mp4upload.*\.html" >> mirrors.txt #mp4upload.com
-URL_DEC "$PASS_1" | grep -o "http.*?st=.*&e=.........." >> mirrors.txt #direct
-URL_DEC "$PASS_1" | grep -o "http://videobam..*" | sed 's/"/ /g' | awk {'print $1'} >> mirrors.txt #videobam
+PASS_1=$(echo "$PAGE" | grep -e stream.php -e Fst -e upload2 -e mp4upload -e videobam -e videoweed -e novamov)
+URL_DEC "$PASS_1" | grep -o "http.*animefreak.tv.*&st=......................" > mirrors.txt # animefreak
+URL_DEC "$PASS_1" | grep -o '"http.*upload2.*embed/.*$' | sed -e 's/"//g' -e 's/><\/iframe.*$//' >> mirrors.txt # upload2.com
+URL_DEC "$PASS_1" | grep -o "http://www.mp4upload.*\.html" >> mirrors.txt # mp4upload.com
+URL_DEC "$PASS_1" | grep -o "http.*?st=.*&e=.........." >> mirrors.txt # direct
+URL_DEC "$PASS_1" | grep -o "http://videobam..*" | sed 's/"/ /g' | awk {'print $1'} >> mirrors.txt # videobam
+URL_DEC "$PASS_1" | grep -o "http://.*videoweed.*&width" | sed 's/&width//' >> mirrors.txt # videoweed
+URL_DEC "$PASS_1" | grep -o "http://embed.novamov.com.*&v=.*&px" | sed 's/&px$//' >> mirrors.txt # novamov
 
 # Sort mirrors, remove duplicates and empty lines
-MIRRORS=$(sort -u mirrors.txt | sed '/^$/d')
+MIRRORS=$(uniq mirrors.txt | sed '/^$/d')
 
 # Count number of mirrors
 M_COUNT=$(echo "$MIRRORS" | wc  | awk {'print $1'})
@@ -50,7 +52,7 @@ fi
 
 M_FILTER() {
 # Choose the appropriate path according to the mirror selected
-TYPE=$(echo "$MIRRORS" | sed -n "$M_NUM"p | grep -o -e animefreak.tv -e upload2 -e mp4upload -e videobam)
+TYPE=$(echo "$MIRRORS" | sed -n "$M_NUM"p | grep -o -e animefreak.tv -e upload2 -e mp4upload -e videobam -e videoweed -e novamov)
 if [ "$TYPE" == "animefreak.tv" ]
 then
 	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep movie)
@@ -67,6 +69,20 @@ elif [ "$TYPE" == videobam ]
 then
 	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep "var player_config")
 	URL=$(echo "$DOWNLINK" | sed -e 's/[\]//g' -e 's/[",]/ /g' | grep -o "http.*" | awk {'print $12'})
+elif [ "$TYPE" == videoweed ]
+then
+	VW=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O -)
+	KEY=$(echo "$VW" | grep -o "fkz=.*-" | sed -e 's/fkz="//' -e 's/-$//')
+	FILE=$(echo "$VW" | grep -o "file=.*" | sed -e 's/file="//' -e 's/";//')
+	DOWNLINK="http://www.videoweed.es/api/player.api.php?file="$FILE"&key="$KEY"&user=undefined&numOfErrors=0&cid3=embed.videoweed.es&pass=undefined&cid2=undefined&cid=0"
+	URL=$(wget -nv -U "$USER_AGENT" "$DOWNLINK" -O - | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/')
+elif [ "$TYPE" == novamov ]
+then
+	NOVAM=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O -)
+	KEY=$(echo "$NOVAM" | grep -o "filekey=.*-" | sed -e 's/filekey="//' -e 's/-$//')
+	FILE=$(echo "$NOVAM" | grep -o "file=.*" | sed -e 's/file="//' -e 's/";//')
+	DOWNLINK="http://www.novamov.com/api/player.api.php?file="$FILE"&cid2=undefined&cid=undefined&user=undefined&pass=undefined&key="$KEY"&numOfErrors=0"
+	URL=$(URL_DEC "$(wget -nv -U "$USER_AGENT" "$DOWNLINK" -O -)" | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/')
 else
 	TYPE=direct
 	URL=$(echo "$MIRRORS" | sed -n "$M_NUM"p)
@@ -141,7 +157,8 @@ fi
 HELP() {
 echo "Interactive script for viewing or downloading videos from Animefreak.tv.
 
-Download modes supported: single episode, entire series or range of episodes.
+Downloading of single episodes, range of episodes or entire series is possible.
+
 Calling the script without arguments will list the latest uploaded videos
 (max 50 entries). Append a search term after the command to \"grep\" the entire
 catalog of Animefreak. For example:
@@ -324,6 +341,8 @@ do
 	# If more than one mirror found
 	else
 		clear
+		echo "$MIRRORS" | grep -o -e "http://[0-9].*[0-9]/" -e animefreak.tv -e upload2.com -e mp4upload.com -e videobam.com -e novamov.com -e videoweed.es \
+		| sed -e 's/http://' -e 's_/__g' | awk '{print NR, $0}'
 		read -p "There are $M_COUNT mirrors for $TITLE Select a number and press enter, (b) to go back, (q) to quit. >> " M_NUM 2>&1
 		if [ "$M_NUM" == q ]
 		then
@@ -406,7 +425,7 @@ do
 done
 }
 
-if [ $1 == "-h" ]
+if [ "$1" == -h ]
 then
 	HELP
 	exit
