@@ -63,9 +63,8 @@ then
 	URL=$(echo "$DOWNLINK" | grep -o "video=http..*" | sed 's/rating=/\n/' | sed -n 1p | sed -e 's/video=//' -e 's/&$//')
 elif [ "$TYPE" == mp4upload ]
 then
-	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep "eval" | sed 's/|/\n/g' | grep -A3 -e IFRAME -e video | \
-	sed -n -e 4p -e 7p)
-	URL=$(echo "http://"$(echo "$DOWNLINK" | sed -n 1p)".mp4upload.com:182/d/"$(echo "$DOWNLINK" | sed -n 2p)"/video.mp4?")
+	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep "'file'")
+	URL=$(echo "$DOWNLINK" | grep -o "http..*'" | sed "s/'//")
 elif [ "$TYPE" == videobam ]
 then
 	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep "var player_config")
