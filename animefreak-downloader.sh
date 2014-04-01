@@ -1,454 +1,481 @@
 #!/bin/bash
 
 ### CONFIGURATION ###
-DOWNLOAD_PATH=$HOME/Downloads # Default: $HOME/Downloads
-TEMP_PATH=/tmp/animefreak_downloader # Default: /tmp/animefreak_downloader
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:25.0) Gecko/20100101 Firefox/25.0"
+DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
+TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
 ### END CONFIGURATION ###
 
+USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:28.0) Gecko/20100101 Firefox/28.0"
+BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
-# Change directory
-cd $TEMP_PATH 2>/dev/null || mkdir -p $TEMP_PATH && cd $TEMP_PATH
-
 # Redirect errors to log file
-exec 2>log.txt
+mkdir -p $TEMP_PATH
+exec 2>$TEMP_PATH/log.txt
 
-PAGE_SCRAPER() {
-# Get episode title, directory name, file name
-TITLE=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/Online |//')
-DIR=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/ Episode .*|//' -e 's/^ *//')
-FILENAME=$(echo "$PAGE" | grep -m 1 title | grep -o "Watch.*|" | sed -e 's/Watch //' -e 's/ Online |//' -e 's/ Episode /.ep/' -e 's/$/.mp4/' -e 's/^ *//')
-
-# Mirror detection
-PASS_1=$(echo "$PAGE" | grep -e stream.php -e Fst -e upload2 -e mp4upload -e videobam -e videoweed -e novamov)
-URL_DEC "$PASS_1" | grep -o "http.*animefreak.tv.*&st=......................" > mirrors.txt # animefreak
-URL_DEC "$PASS_1" | grep -o '"http.*upload2.*embed/.*$' | sed -e 's/"//g' -e 's/><\/iframe.*$//' >> mirrors.txt # upload2.com
-URL_DEC "$PASS_1" | grep -o "http://www.mp4upload.*\.html" >> mirrors.txt # mp4upload.com
-URL_DEC "$PASS_1" | grep -o "http.*?st=.*&e=.........." >> mirrors.txt # direct
-URL_DEC "$PASS_1" | grep -o "http://videobam..*" | sed 's/"/ /g' | awk {'print $1'} >> mirrors.txt # videobam
-URL_DEC "$PASS_1" | grep -o "http://.*videoweed.*&width" | sed 's/&width//' >> mirrors.txt # videoweed
-URL_DEC "$PASS_1" | grep -o "http://embed.novamov.com.*&v=.*&px" | sed 's/&px$//' >> mirrors.txt # novamov
-
-# Sort mirrors, remove duplicates and empty lines
-MIRRORS=$(uniq mirrors.txt | sed '/^$/d')
-
-# Count number of mirrors
-M_COUNT=$(echo "$MIRRORS" | wc  | awk {'print $1'})
-
-# log
-echo "INFO: Number of mirrors detected $M_COUNT which are: " >> log.txt
-echo "$MIRRORS" >> log.txt
+###################### MIRRORS #########################
+# Accepts 1 arg: html response from the server ($RESPONSE)
+ANIMEFREAK() {
+URL_DEC "$1"\
+	| grep "movie"\
+	| egrep -o -e "=http..*st=.{22}" -e "=http..*e=.{10}"\
+	| sed 's/=//'
 }
 
-MIRROR_CHECK() {
-# No mirrors found
-if [ -z "$MIRRORS" ]
-then
-	read -p "Can't detect a working mirror :(. Press enter to go back..." 2>&1
+UPLOAD2() {
+echo "$1"\
+	| grep -o "video=http.*"\
+	| sed 's/\&rating/\n/'\
+	| grep -o -m 1 "http.*"
+}
+
+MP4UPLOAD() {
+echo "$1" | grep "file" | grep -o "http.*mp4'"
+}
+
+VIDEOBAM() {
+echo "$1"\
+	| grep "var player_config"\
+	| sed -e 's/[\]//g' -e 's/[",]/ /g'\
+	| grep -o "http.*"\
+	| awk {'print $12'}
+}
+
+VIDEOWEED() {
+HOST="http://www.videoweed.es/api/player.api.php?"
+KEY=$(echo "$1"\
+	| grep -o "fkz=.*-"\
+	| sed -e 's/fkz="//' -e 's/-$//')
+FILE=$(echo "$1"\
+	| grep -o 'file=.*"'\
+	| sed -e 's/file="//' -e 's/"//g')
+RESPONSE_2=""$HOST"file="$FILE"&key="$KEY""
+RESPONSE_2=$(GET "$RESPONSE_2" -)
+echo "$RESPONSE_2" | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/'
+}
+
+NOVAMOV() {
+HOST="http://www.novamov.com/api/player.api.php?"
+KEY=$(echo "$1"\
+	| grep -o "filekey=.*-"\
+	| sed -e 's/filekey="//' -e 's/-$//')
+FILE=$(echo "$1"\
+	| grep -o "file=.*"\
+	| sed -e 's/file="//' -e 's/";//')
+RESPONSE_2=""$HOST"file="$FILE"&key="$KEY""
+RESPONSE_2=$(URL_DEC "$(GET "$RESPONSE_2" -)")
+echo "$RESPONSE_2" | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/'
+}
+
+################## INPUT CHECKS ####################
+# Accepts 1 or 2 args for input checking
+QUIT() {
+if [ $1 == q ]; then
+	echo "exit"
+	exit
+fi
+}
+
+BACK() {
+if [ $1 == b ]; then
+	break
+fi
+}
+
+IS_NUM() {
+if ! [[ $1 =~ ^[0-9]+$ ]]; then
+	echo "Not a valid number or option"
+	sleep 1
 	continue
 fi
 }
 
-M_FILTER() {
+IS_GREATER() {
+if [ $1 -gt $2 ]; then
+	echo "Not a valid number or option"
+	sleep 1
+	continue
+fi
+}
+
+IS_ZERO() {
+if [ $1 -eq 0 ]; then
+	echo "Can not be 0"
+	sleep 1
+	continue
+fi
+}
+
+NA() {
+echo "Not a valid option"
+sleep 1
+continue
+}
+
+SEARCH_BR() {
+if [ "$1" == s ]; then
+	read -p "Search for? >> " SEARCH 2>&1
+	break
+fi
+}
+
+SEARCH_CONT() {
+if [ "$1" == s ]; then
+	read -p "Search for? >> " SEARCH 2>&1
+	continue
+fi
+}
+
+IS_RANGE() {
+if [ $1 == r ]; then
+	RANGE "$2"
+	continue
+fi
+}
+
+IS_ALL() {
+if [ "$1" == a ]; then
+	BATCH "$2" "$3" "$4"
+	continue
+fi
+}
+
+###################### SECONDARY FUNCTIONS #########################
+GET() {
+# Accepts 2 args: url or stdin and file or stdout
+if [ "$1" == "-" ]; then
+	wget -nv -U "$USER_AGENT" -i "$1" -O "$2"
+else
+	wget -nv -U "$USER_AGENT" "$1" -O "$2"
+fi
+}
+
+MIRROR_SCRAPER() {
+# Accepts 1 arg: html page of episode ($PAGE)
+PASS_1=$(echo "$1"\
+	| grep -e "Fst"\
+		   -e "mp4upload"\
+		   -e "upload2"\
+		   -e "videobam"\
+		   -e "novamov"\
+		   -e "videoweed")
+PASS_1=$(URL_DEC "$PASS_1")
+M1=$(echo "$PASS_1" | egrep -o "http.*st=.*e=.{10}")
+M2=$(echo "$PASS_1" | egrep -o "http.*freak.*st=.{22}")
+M3=$(echo "$PASS_1" | egrep -o "http.*mp4up.*\.html")
+M4=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
+M5=$(echo "$PASS_1" | egrep -o "http://videobam..*")
+M6=$(echo "$PASS_1" | egrep -o "http.*videow.*v=.{13}" | sed 's/"//g')
+M7=$(echo "$PASS_1" | egrep -o "http.*nova.*v=.{13}")
+echo -e "$M1\n$M2\n$M3\n$M4\n$M5\n$M6\n$M7" | awk ' !x[$0]++' | sed '/^$/d'
+}
+
+MIRROR_FILTER() {
 # Choose the appropriate path according to the mirror selected
-TYPE=$(echo "$MIRRORS" | sed -n "$M_NUM"p | grep -o -e animefreak.tv -e upload2 -e mp4upload -e videobam -e videoweed -e novamov)
-if [ "$TYPE" == "animefreak.tv" ]
-then
-	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep movie)
-	URL=$(URL_DEC "$DOWNLINK" | grep -o -e "=http..*st=......................" -e "=http..*e=.........." | sed 's/=//')
-elif [ "$TYPE" == upload2 ]
-then
-	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep movie)
-	URL=$(echo "$DOWNLINK" | grep -o "video=http..*" | sed 's/rating=/\n/' | sed -n 1p | sed -e 's/video=//' -e 's/&$//')
-elif [ "$TYPE" == mp4upload ]
-then
-	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep "'file'")
-	URL=$(echo "$DOWNLINK" | grep -o "http..*'" | sed "s/'//")
-elif [ "$TYPE" == videobam ]
-then
-	DOWNLINK=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O - | grep "var player_config")
-	URL=$(echo "$DOWNLINK" | sed -e 's/[\]//g' -e 's/[",]/ /g' | grep -o "http.*" | awk {'print $12'})
-elif [ "$TYPE" == videoweed ]
-then
-	VW=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O -)
-	KEY=$(echo "$VW" | grep -o "fkz=.*-" | sed -e 's/fkz="//' -e 's/-$//')
-	FILE=$(echo "$VW" | grep -o "file=.*" | sed -e 's/file="//' -e 's/";//')
-	DOWNLINK="http://www.videoweed.es/api/player.api.php?file="$FILE"&key="$KEY"&user=undefined&numOfErrors=0&cid3=embed.videoweed.es&pass=undefined&cid2=undefined&cid=0"
-	URL=$(wget -nv -U "$USER_AGENT" "$DOWNLINK" -O - | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/')
-elif [ "$TYPE" == novamov ]
-then
-	NOVAM=$(wget -nv -U "$USER_AGENT" "$(echo "$MIRRORS" | sed -n "$M_NUM"p)" -O -)
-	KEY=$(echo "$NOVAM" | grep -o "filekey=.*-" | sed -e 's/filekey="//' -e 's/-$//')
-	FILE=$(echo "$NOVAM" | grep -o "file=.*" | sed -e 's/file="//' -e 's/";//')
-	DOWNLINK="http://www.novamov.com/api/player.api.php?file="$FILE"&cid2=undefined&cid=undefined&user=undefined&pass=undefined&key="$KEY"&numOfErrors=0"
-	URL=$(URL_DEC "$(wget -nv -U "$USER_AGENT" "$DOWNLINK" -O -)" | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/')
+# Accepts 1 arg: mirror ($MIRROR) selected
+TYPE=$(echo "$1"\
+	| grep -o -e "animefreak.tv"\
+			  -e "upload2"\
+			  -e "mp4upload"\
+			  -e "videobam"\
+			  -e "videoweed"\
+			  -e "novamov")
+if [ "$TYPE" == "" ]; then
+	echo "$1"
 else
-	TYPE=direct
-	URL=$(echo "$MIRRORS" | sed -n "$M_NUM"p)
-fi
-echo "INFO: $TYPE path chosen with url $URL" >> log.txt # log
-}
-
-BATCH() {
-read -p "Start downloading multiple episodes? Press enter to continue, (b) to go back. >> " CHOICE 2>&1
-if [ "$CHOICE" == b ]
-then
-	continue
-else
-	while [ "$EP" -le $R_COUNT ]
-	do
-		# Get page
-		PAGE=$(echo "$CONTENT" | sed -n "$EP"p | sed 's/ .*$//' | wget -nv -U "$USER_AGENT" -i - -O -)
-		PAGE_SCRAPER
-		# Check if no mirrors
-		if [ -z "$MIRRORS" ]
-		then
-			read -p "Can't detect a working mirror :(. Press enter to continue to the next episode or (c) to cancel. >> " CHOICE 2>&1
-			if [ "$CHOICE" == c ]
-			then
-				break
-			else
-				EP=$(expr $EP + 1)
-				continue
-			fi
-		fi
-		M_NUM=1
-		M_FILTER
-		DOWNLOADER
-		EP=$(expr $EP + 1)
-	done
-	read -p "Done! Press enter to continue." 2>&1
+	RESPONSE=$(GET "$1" -)
+	if [ "$TYPE" == "animefreak.tv" ]; then
+		ANIMEFREAK "$RESPONSE"
+	elif [ "$TYPE" == upload2 ]; then
+		UPLOAD2 "$RESPONSE"
+	elif [ "$TYPE" == mp4upload ]; then
+		MP4UPLOAD "$RESPONSE"
+	elif [ "$TYPE" == videobam ]; then
+		VIDEOBAM "$RESPONSE"
+	elif [ "$TYPE" == videoweed ]; then
+		VIDEOWEED "$RESPONSE"
+	elif [ "$TYPE" == novamov ]; then
+		NOVAMOV "$RESPONSE"
+	fi
 fi
 }
 
 DOWNLOADER() {
+# Accepts 3 args: the url ($URL), download path ($FILE_PATH)
+# and the filename ($FILENAME)
 echo
-mkdir -p "$DOWNLOAD_PATH/$DIR"
-wget -U "$USER_AGENT" "$URL" -O "$DOWNLOAD_PATH/$DIR/$FILENAME" 2>&1
+mkdir -p "$2"
+wget -U "$USER_AGENT" "$1" -O "$2/$3" 2>&1
+}
+
+PLAYER() {
+# Accepts 1 arg: the url ($URL) to be played
+mplayer -msglevel all=1 -user-agent "$USER_AGENT" "$1"
 }
 
 URL_DEC() {
+# Decodes 
 local d=${1//+/ }; printf '%b' "${d//%/\x}";
 }
 
-INPUT_CHECK() {
-if [ "$EP" == q ] # Quit
-then
-	echo "exit"
-	exit
-elif [ $EP == s ] # Search again
-	then
-	read -p "Search for? >> " SEARCH 2>&1
-	continue
-elif ! [[ "$EP" =~ ^[0-9]+$ ]] # Check if it is a number
-then
-	echo "Not a valid number or option"
-	sleep 1
-	continue
-elif [ "$EP" -gt "$R_COUNT" -o "$EP" -eq 0 ] # Check if 0 or greater than $R_COUNT
-then
-	echo "Not a valid number or option"
-	sleep 1
-	continue
-fi
-}
-
 HELP() {
-echo "Interactive script for viewing or downloading videos from Animefreak.tv.
+echo "\
+Interactive script for viewing or downloading videos from Animefreak.tv.
 
-Downloading of single episodes, range of episodes or entire series is possible.
+Downloading of single episodes, range of episodes or entire series is
+possible.
 
-Calling the script without arguments will list the latest uploaded videos
-(max 50 entries). Append a search term after the command to \"grep\" the entire
-catalog of Animefreak. For example:
+Calling the script without arguments will list the latest uploaded
+videos (max 50 entries). Append a search term after the command to
+\"grep\" the entire catalog of Animefreak. For example:
 
 ./animefreak-downloader.sh monogatari
 
-Wget needs to be intalled for downloading. Mplayer (optional) for viewing
-videos.
+Wget needs to be intalled for downloading. Mplayer (optional) for
+viewing videos.
 
 As always, please do not abuse the service.
 
 Options:	-h 	     print this help tip"
 }
 
-PATH_1A() {
+###################### MAIN FUNCTIONS #########################
+CATALOG_1() {
+# Accepts 1 arg: list of all the series ($CATALOG)
 while :
 do
 	clear
-
-	# Assemble a list of titles according the search term
-	BOOK=$(grep -o '<a href="/watch..*</a>' book.htm |sed -e 's/<a href="/http:\/\/www.animefreak.tv/' -e 's/">/ /' -e 's/<\/a>//' | \
-	grep -i -e " .*$SEARCH")
-
-	# Count number of results
-	R_COUNT=$(echo "$BOOK" | wc | awk '{print $1}')
-
-	# Check if no results
-	if [ -z "$BOOK" ]
-	then
+	RESULTS=$(echo "$1" | grep -i "\".*$SEARCH")
+	LINKS=$(echo "$RESULTS"\
+		| grep -o '^.*"'\
+		| sed -e "s#^#$BASE_URL#" -e 's/"//')
+	TITLES=$(echo "$RESULTS" | grep -o '".*$' | sed 's/"//')
+	R_COUNT=$(echo "$RESULTS" | wc -l)
+	if [ -z "$RESULTS" ]; then
 		read -p "No title found containing the word(s) $SEARCH. Search for? >> " SEARCH 2>&1
 		continue
 	fi
-
-	# Print the results to screen
-	echo "$BOOK" | grep -o " .*$" | awk '{print NR, $0}' | column
-
-	# Get user input
+	echo "$TITLES" | awk '{print NR, $0}' | column
 	read -p "Found $R_COUNT results containing the word(s): $SEARCH. Type a number to select a series and press enter. (s) to search again. (q) to quit. >> " EP 2>&1
-
-	INPUT_CHECK
-
-	# Get page of series
-	echo "$BOOK" | sed -n "$EP"p | sed 's/ .*$//' | wget -nv -U "$USER_AGENT" -i - -O title.htm
-
-	# Get only the eisodes
-	CONTENT=$(grep -i leaf title.htm | grep -o '<a href..*</a>' | sed -e 's/<a href="/http:\/\/www.animefreak.tv/' -e 's/">/ /' -e 's/<\/a>//' | \
-	awk ' !x[$0]++')
-
-	# If no episodes found
-	if [ -z "$CONTENT" ]
-	then
-		echo "INFO: Propably movie found, using alternative path" >> log.txt # log
-		PAGE=$(cat title.htm)
-		PAGE_SCRAPER
-		MIRROR_CHECK
-		PATH_3
+	QUIT $EP
+	SEARCH_CONT $EP
+	IS_NUM $EP
+	IS_GREATER $EP $R_COUNT
+	IS_ZERO $EP
+	EP_PAGE=$(echo "$LINKS" | sed -n "$EP"p | GET - -)
+	EP_LINKS=$(echo "$EP_PAGE"\
+		| grep -i "leaf"\
+		| grep -o '/wa.*"'\
+		| sed -e "s#^#$BASE_URL#" -e 's/"$//'\
+		| awk ' !x[$0]++')
+	EP_TITLES=$(echo "$EP_PAGE"\
+		| grep -i "leaf"\
+		| grep -o 'wa.*</a'\
+		| grep -o '>.*<'\
+		| sed 's/[<,>]//g'\
+		| awk ' !x[$0]++')
+	if [ -z "$EP_LINKS" ]; then
+		PAGE="$EP_PAGE"
+		PAGE_SCRAPER "$PAGE"
 	else
 		break
 	fi
 done
 }
 
-PATH_1B() {
+CATALOG_2() {
+# Accepts 2 args: list of episode links ($EP_LINKS)
+# and titles ($EP_TITLES)
 while :
 do
 	clear
-
-	# Count number of available episodes
-	R_COUNT=$(echo "$CONTENT" | wc | awk '{print $1}')
-
-	# Print episodes to screen
-	echo "$CONTENT" | grep -o -i " .*$" | awk '{print NR, $0}' | column  -t | more 2>&1
-
-	# Get user input
+	R_COUNT=$(echo "$1" | wc -l)
+	echo "$2" | awk '{print NR, $0}' | more 2>&1
 	read -p "Select an episode, (a) to download all, (r) to download range, (s) to make a new search, (q) to quit. >> " EP 2>&1
-
-	# Input check
-	if [ "$EP" == s ] # Search again
-	then
-		read -p "Search for? >> " SEARCH 2>&1
-		break
-	elif [ "$EP" == r ] # Download range
-	then
-		while :
-		do
-			echo "Type (c) in either field to cancel"
-
-			# Get From input
-			read -p "Download from:" EP 2>&1
-			if [ "$EP" == c ]
-			then
-				break
-			fi
-
-			# Get To input
-			read -p "To:" R_COUNT 2>&1
-			if [ "$R_COUNT" == c ]
-			then
-				break
-			fi
-
-			# Input check
-			if ! [[ "$EP" =~ ^[0-9]+$ ]]
-			then
-				echo "Not a number"
-				sleep 1
-				continue
-			elif ! [[ "$R_COUNT" =~ ^[0-9]+$ ]] 
-			then
-				echo "Not a number"
-				sleep 1
-				continue
-			elif [ "$EP" -eq 0 -o "$R_COUNT" -eq 0 ]
-			then
-				echo "Can not be 0 either field"
-				sleep 1
-				continue
-			elif [ "$EP" -ge "$R_COUNT" ]
-			then
-				echo "From: can not be greater or equal to To:"
-				sleep 1
-				continue
-			else
-				BATCH
-				break
-			fi
-		done
-		continue
-	elif [ "$EP" == a ] # Download all
-	then
-		EP=1
-		BATCH
-		continue
-	fi
-	INPUT_CHECK
-
-	# Get page
-	PAGE=$(echo "$CONTENT" | sed -n "$EP"p | sed 's/ .*$//' | wget -nv -U "$USER_AGENT" -i - -O -)
-
-	PAGE_SCRAPER
-	MIRROR_CHECK
-	PATH_3
+	SEARCH_BR "$EP"
+	IS_ALL "$EP" 1 "$R_COUNT" "$1"
+	IS_RANGE $EP "$1"
+	QUIT $EP
+	IS_NUM $EP
+	IS_GREATER $EP $R_COUNT
+	IS_ZERO $EP
+	PAGE=$(echo "$1" | sed -n "$EP"p | GET - -)
+	PAGE_SCRAPER "$PAGE"
 done
 }
 
-PATH_2() {
+LATEST() {
+# Accepts 2 args: list of episode links ($EP_LINKS)
+# and titles ($EP_TITLES)
 while :
 do
 	clear
-
-	# Count number of available episodes
-	R_COUNT=$(echo "$CONTENT" | wc | awk '{print $1}')
-
-	# Print results to screen and episode selection
-	echo "$CONTENT" | grep -o " .*$" | awk '{print NR, $0}' | more 2>&1
-
-	# Get user input
-	read -p "Type a number to select an episode and press enter. Press (q) to quit. >> " EP 2>&1
-
-	INPUT_CHECK
-
-	# Get page
-	PAGE=$(echo "$CONTENT" | sed -n "$EP"p | sed 's/ .*$//' | wget -nv -U "$USER_AGENT" -i - -O -)
-
-	PAGE_SCRAPER
-	MIRROR_CHECK
-	PATH_3
+	R_COUNT=$(echo "$1" | wc -l)
+	echo "$2" | awk '{print NR, $0}' | more 2>&1
+	read -p "Select an episode (1-50), (r) to download range, (q) to quit. >> " EP 2>&1
+	IS_RANGE $EP "$1"
+	QUIT $EP
+	IS_NUM $EP
+	IS_GREATER $EP $R_COUNT
+	IS_ZERO $EP
+	PAGE=$(echo "$1" | sed -n "$EP"p | GET - -)
+	PAGE_SCRAPER "$PAGE"
 done
 }
 
-PATH_3() {
+PAGE_SCRAPER() {
+# Accepts 1 arg: the html page ($PAGE) containing the videos
 while :
 do
-	# If only one mirror found
-	if [ "$M_COUNT" -eq 1 ]
-	then
-		M_NUM=1
-		M_FILTER
-
-	# If more than one mirror found
+	MIRRORS=$(MIRROR_SCRAPER "$1")
+	if [ -z "$MIRRORS" ]; then
+		echo "Can't detect a working mirror. Press enter to go back..."
+		read 2>&1
+		break
+	fi
+	TITLE=$(echo "$1"\
+		| grep -o " / .*</p"\
+		| sed -e 's/ \/ //' -e 's/<\/p//')
+	DIR=$(echo "$TITLE" | sed 's/ Episode.*$//')
+	FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/' -e 's/$/.mp4/')
+	M_COUNT=$(echo "$MIRRORS" | wc -l)
+	if [ "$M_COUNT" -eq 1 ]; then
+		URL=$(MIRROR_FILTER "$MIRRORS")
 	else
 		clear
-		echo "$MIRRORS" | grep -o -e "http://[0-9].*[0-9]/" -e animefreak.tv -e upload2.com -e mp4upload.com -e videobam.com -e novamov.com -e videoweed.es \
-		| sed -e 's/http://' -e 's_/__g' | awk '{print NR, $0}'
+		echo "$MIRRORS"\
+			| grep -o -e "http://[0-9].*[0-9]/"\
+					  -e "animefreak.tv"\
+					  -e "upload2.com"\
+					  -e "mp4upload.com"\
+					  -e "videobam.com"\
+					  -e "novamov.com"\
+					  -e "videoweed.es"\
+			| sed -e 's/http://'\
+				  -e 's/\///g'\
+			| awk '{print NR, $0}'
 		read -p "There are $M_COUNT mirrors for $TITLE Select a number and press enter, (b) to go back, (q) to quit. >> " M_NUM 2>&1
-		if [ "$M_NUM" == q ]
-		then
-			echo "exit"
-			exit
-		elif [ "$M_NUM" == b ]
-		then
-			break
-		elif ! [[ "$M_NUM" =~ ^[0-9]+$ ]] ; 
-		then
-			echo "Not a number"
-			sleep 1
-			continue
-		elif [ "$M_NUM" == 0 -o "$M_NUM" -gt "$M_COUNT" ]
-		then
-			echo "Not a valid number"
-			sleep 1
-			continue
-		else
-			M_FILTER
-		fi
+		QUIT $M_NUM
+		BACK $M_NUM
+		IS_NUM $M_NUM
+		IS_ZERO $M_NUM
+		IS_GREATER $M_NUM $M_COUNT
+		MIRROR=$(echo "$MIRRORS" | sed -n "$M_NUM"p)
+		URL=$(MIRROR_FILTER "$MIRROR")
 	fi
-
-	# Download or play the file
+	FILE_PATH="$DL_PATH/$DIR"
 	while :
 	do
+		ERROR=CONT
 		read -p "View (v) or save (s) video? (b) to go back (q) to quit. >> " CHOICE 2>&1
-		if [ "$CHOICE" == q ]
-		then
-			echo "exit"
-			exit
-		elif [ "$CHOICE" == b ]
-		then
+		QUIT $CHOICE
+		BACK $CHOICE
+		if [ "$CHOICE" == s ]; then
+			DOWNLOADER "$URL" "$FILE_PATH" "$FILENAME"
+			if [ $? != 0 ];then
+				ERROR=TRUE
+			fi
 			break
-		elif [ "$CHOICE" == s ]
-		then
-			DOWNLOADER
-			break
-		elif [ "$CHOICE" == v ]
-		then
-			mplayer -msglevel all=1 -user-agent "$USER_AGENT" "$URL"
+		elif [ "$CHOICE" == v ]; then
+			PLAYER "$URL"
+			if [ $? != 0 ];then
+				ERROR=TRUE
+			fi
 			break
 		else
-			echo "Not a valid option"
-			sleep 1
-			continue
+			NA
 		fi
 	done
-
-	# If only one mirror available go back
-	if [ "$M_COUNT" -eq 1 ]
-	then
-		break
-
-	# Or try a different mirror
-	else
-		while :
-		do
-			read -p "Try a different mirror? (y) for yes (n) to go back (q) to quit. >> " DIFF 2>&1
-			if [ "$DIFF" == y -o "$DIFF" == n ]
-			then
-				break
-			elif [ "$DIFF" == q ]
-			then
-				echo "exit"
-				exit
-			else
-				echo "Not a valid option."
-				sleep 1
-				continue
-			fi
-		done
-		if [ "$DIFF" == y ]
-		then
+	if [ $ERROR == "TRUE" ]; then
+		read -p "Seems there was an error, try a different mirror? (y) for yes, enter to continue. >> " DIFF 2>&1
+		if [ "$DIFF" == y ]; then
 			continue
 		else
 			break
 		fi
+	elif [ $ERROR == "CONT" ]; then
+		break
+	else
+		read -p "Done! Press enter to continue." 2>&1
+		break
 	fi
 done
 }
 
-if [ "$1" == -h ]
-then
+RANGE() {
+# Accepts 1 arg: a list of links ($EP_LINKS) where the range will
+# act upon
+while :
+do
+	echo "Type (b) in either field to go back."
+	read -p "Download from:" START 2>&1
+	BACK $START
+	IS_NUM $START
+	IS_GREATER $START $R_COUNT
+	IS_ZERO $START
+	read -p "To:" END 2>&1
+	BACK $END
+	IS_NUM $END
+	IS_GREATER $START $END
+	IS_ZERO $END
+	BATCH $START $END "$1"
+	break
+done
+}
+
+BATCH() {
+# Accepts 3 args: start and end point ($START) ($END),
+# and a list of episode links ($EP_LINKS)
+while [ $1 -le $2 ]
+do
+	PAGE=$(echo "$3" | sed -n "$1"p | GET - -)
+	MIRRORS=$(MIRROR_SCRAPER "$PAGE")
+	if [ -z "$MIRRORS" ]; then
+		read -p "Can't detect a working mirror. Press enter to continue to the next episode or (c) to cancel. >> " CHOICE 2>&1
+		if [ "$CHOICE" == c ]; then
+			break
+		else
+			set -- "$(expr $1 + 1)" "${@:2:3}"
+			continue
+		fi
+	fi
+	MIRROR=$(echo "$MIRRORS" | sed -n 1p)
+	TITLE=$(echo "$PAGE"\
+		| grep -o " / .*</p"\
+		| sed -e 's/ \/ //' -e 's/<\/p//')
+	DIR=$(echo "$TITLE" | sed 's/ Episode.*$//')
+	URL=$(MIRROR_FILTER "$MIRROR")
+	FILE_PATH="$DL_PATH/$DIR"
+	FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/' -e 's/$/.mp4/')
+	DOWNLOADER "$URL" "$FILE_PATH" "$FILENAME"
+	set -- "$(expr $1 + 1)" "${@:2:3}"
+done
+read -p "Done! Press enter to continue." 2>&1
+}
+
+if [ "$1" == -h ]; then
 	HELP
 	exit
-elif [ "$SEARCH" ] 
-then
-	# Get entire catalog if not allready downloaded
-	if ! [ -s book.htm ]
-	then 
-		echo "Getting anime catalog."
-		wget -nv -U "$USER_AGENT" "http://www.animefreak.tv/book" -O book.htm
-	fi
-
+elif [ "$SEARCH" ]; then
+	echo "Getting anime catalog"
+	BOOK=$(GET "$BASE_URL/book" -)
+	CATALOG=$(echo "$BOOK"\
+		| grep -o '"/w.*</a'\
+		| sed -e 's/"//' -e 's/<\/a//' -e 's/">/"/')
 	while :
 	do
-		PATH_1A
-		PATH_1B
+		CATALOG_1 "$CATALOG"
+		CATALOG_2 "$EP_LINKS" "$EP_TITLES"
 	done
 else
 	echo "Getting latest episodes."
-
-	# Get the latest episodes
-	CONTENT=$(wget -nv -U "$USER_AGENT" 'http://www.animefreak.tv/tracker' -O - | grep -o '"/watch.*</a>' | grep -i -e episode -e movie | \
-	sed -e 's/"/http:\/\/www.animefreak.tv/' -e 's/">/ /' -e 's/<\/a>//')
-
-	PATH_2
+	TRACKER=$(GET "$BASE_URL/tracker" -)
+	EP_LINKS=$(echo "$TRACKER"\
+		| grep -o '"/w.*"'\
+		| sed -e "s#^#$BASE_URL#" -e 's/"//g')
+	EP_TITLES=$(echo "$TRACKER"\
+		| grep -o '"/w.*</a'\
+		| grep -o '>.*<'\
+		| sed 's/[<>]//g')
+	LATEST "$EP_LINKS" "$EP_TITLES"
 fi
