@@ -273,6 +273,8 @@ do
 		| grep -o 'wa.*</a'\
 		| grep -o '>.*<'\
 		| sed 's/[<,>]//g'\
+		| sed "s/&#039;/'/g"\
+		| sed 's/&amp;/\&/g'\
 		| awk ' !x[$0]++')
 	if [ -z "$EP_LINKS" ]; then
 		PAGE="$EP_PAGE"
@@ -335,7 +337,9 @@ do
 	fi
 	TITLE=$(echo "$1"\
 		| grep -o " / .*</p"\
-		| sed -e 's/ \/ //' -e 's/<\/p//')
+		| sed -e 's/ \/ //' -e 's/<\/p//'\
+		| sed "s/&#039;/'/g"\
+		| sed 's/&amp;/\&/g')
 	DIR=$(echo "$TITLE" | sed 's/ Episode.*$//')
 	FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/' -e 's/$/.mp4/')
 	M_COUNT=$(echo "$MIRRORS" | wc -l)
@@ -374,12 +378,16 @@ do
 			DOWNLOADER "$URL" "$FILE_PATH" "$FILENAME"
 			if [ $? != 0 ];then
 				ERROR=TRUE
+			else
+				ERROR=FALSE
 			fi
 			break
 		elif [ "$CHOICE" == v ]; then
 			PLAYER "$URL"
 			if [ $? != 0 ];then
 				ERROR=TRUE
+			else
+				ERROR=FALSE
 			fi
 			break
 		else
@@ -395,7 +403,7 @@ do
 		fi
 	elif [ $ERROR == "CONT" ]; then
 		break
-	else
+	elif [ $ERROR == "FALSE" ]; then
 		read -p "Done! Press enter to continue." 2>&1
 		break
 	fi
@@ -442,7 +450,9 @@ do
 	MIRROR=$(echo "$MIRRORS" | sed -n 1p)
 	TITLE=$(echo "$PAGE"\
 		| grep -o " / .*</p"\
-		| sed -e 's/ \/ //' -e 's/<\/p//')
+		| sed -e 's/ \/ //' -e 's/<\/p//'\
+		| sed "s/&#039;/'/g"\
+		| sed 's/&amp;/\&/g')
 	DIR=$(echo "$TITLE" | sed 's/ Episode.*$//')
 	URL=$(MIRROR_FILTER "$MIRROR")
 	FILE_PATH="$DL_PATH/$DIR"
@@ -476,6 +486,8 @@ else
 	EP_TITLES=$(echo "$TRACKER"\
 		| grep -o '"/w.*</a'\
 		| grep -o '>.*<'\
-		| sed 's/[<>]//g')
+		| sed 's/[<>]//g'\
+		| sed "s/&#039;/'/g"\
+		| sed 's/&amp;/\&/g')
 	LATEST "$EP_LINKS" "$EP_TITLES"
 fi
