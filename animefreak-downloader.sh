@@ -5,7 +5,7 @@ DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
 ### END CONFIGURATION ###
 
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:28.0) Gecko/20100101 Firefox/28.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:33.0) Gecko/20100101 Firefox/33.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
@@ -154,6 +154,7 @@ MIRROR_SCRAPER() {
 # Accepts 1 arg: html page of episode ($PAGE)
 PASS_1=$(echo "$1"\
 	| grep -e "Fst"\
+		   -e "anime1"\
 		   -e "mp4upload"\
 		   -e "upload2"\
 		   -e "videobam"\
@@ -167,6 +168,7 @@ M4=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
 M5=$(echo "$PASS_1" | egrep -o "http://videobam..*")
 M6=$(echo "$PASS_1" | egrep -o "http.*videow.*v=.{13}" | sed 's/"//g')
 M7=$(echo "$PASS_1" | egrep -o "http.*nova.*v=.{13}")
+M8=$(echo "$PASS_1" | egrep -o "http.*anime1.*st=.*e=.{10}")
 echo -e "$M1\n$M2\n$M3\n$M4\n$M5\n$M6\n$M7" | awk ' !x[$0]++' | sed '/^$/d'
 }
 
@@ -355,6 +357,7 @@ do
 					  -e "videobam.com"\
 					  -e "novamov.com"\
 					  -e "videoweed.es"\
+					  -e "anime1.com"\
 			| sed -e 's/http://'\
 				  -e 's/\///g'\
 			| awk '{print NR, $0}'
@@ -404,6 +407,7 @@ do
 	elif [ $ERROR == "CONT" ]; then
 		break
 	elif [ $ERROR == "FALSE" ]; then
+		echo -ne $'\a'
 		read -p "Done! Press enter to continue." 2>&1
 		break
 	fi
@@ -460,6 +464,7 @@ do
 	DOWNLOADER "$URL" "$FILE_PATH" "$FILENAME"
 	set -- "$(expr $1 + 1)" "${@:2:3}"
 done
+echo -ne $'\a'
 read -p "Done! Press enter to continue." 2>&1
 }
 
