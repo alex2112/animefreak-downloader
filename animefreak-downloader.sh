@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ### CONFIGURATION ###
 DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
 ### END CONFIGURATION ###
 
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:33.0) Gecko/20100101 Firefox/33.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:34.0) Gecko/20100101 Firefox/34.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
@@ -152,23 +152,23 @@ fi
 
 MIRROR_SCRAPER() {
 # Accepts 1 arg: html page of episode ($PAGE)
+# "Fst" matches: anime1.com, raw ips, animefreak.old, animefreak.new
 PASS_1=$(echo "$1"\
 	| grep -e "Fst"\
-		   -e "anime1"\
 		   -e "mp4upload"\
 		   -e "upload2"\
 		   -e "videobam"\
 		   -e "novamov"\
 		   -e "videoweed")
 PASS_1=$(URL_DEC "$PASS_1")
-M1=$(echo "$PASS_1" | egrep -o "http.*st=.*e=.{10}")
-M2=$(echo "$PASS_1" | egrep -o "http.*freak.*st=.{22}")
-M3=$(echo "$PASS_1" | egrep -o "http.*mp4up.*\.html")
+M1=$(echo "$PASS_1" | egrep -o "http.*st=.{22}&e=.{10}") # matches anime1.com, raw ips
+M2=$(echo "$PASS_1" | egrep -o "http.*freak.*e=.{10}&st=.{22}") # matches animefreak.old
+M3=$(echo "$PASS_1" | egrep -o "http://www.mp4up.*\.html")
 M4=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
 M5=$(echo "$PASS_1" | egrep -o "http://videobam..*")
 M6=$(echo "$PASS_1" | egrep -o "http.*videow.*v=.{13}" | sed 's/"//g')
 M7=$(echo "$PASS_1" | egrep -o "http.*nova.*v=.{13}")
-M8=$(echo "$PASS_1" | egrep -o "http.*anime1.*st=.*e=.{10}")
+# M8=$(echo "$PASS_1" | egrep -o "http.*freak.*e=h&st=h") # matches animefreak.new
 echo -e "$M1\n$M2\n$M3\n$M4\n$M5\n$M6\n$M7" | awk ' !x[$0]++' | sed '/^$/d'
 }
 
@@ -234,7 +234,7 @@ videos (max 50 entries). Append a search term after the command to
 ./animefreak-downloader.sh monogatari
 
 Wget needs to be intalled for downloading. Mplayer (optional) for
-viewing videos.
+viewing videos. Tested on Debian/Ubuntu and Windows with Cygwin.
 
 As always, please do not abuse the service.
 
@@ -332,6 +332,7 @@ PAGE_SCRAPER() {
 while :
 do
 	MIRRORS=$(MIRROR_SCRAPER "$1")
+	echo "$MIRRORS" >> $TEMP_PATH/log.txt
 	if [ -z "$MIRRORS" ]; then
 		echo "Can't detect a working mirror. Press enter to go back..."
 		read 2>&1
@@ -342,8 +343,10 @@ do
 		| sed -e 's/ \/ //' -e 's/<\/p//'\
 		| sed "s/&#039;/'/g"\
 		| sed 's/&amp;/\&/g')
-	DIR=$(echo "$TITLE" | sed 's/ Episode.*$//')
-	FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/' -e 's/$/.mp4/')
+	DIR=$(echo "$TITLE" | sed -e 's/ Episode.*$//' -e 's#[<>:"/\|?*]#_#g')
+	FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/'\
+								   -e 's/$/.mp4/'\
+							 	   -e 's#[<>:"/\|?*]#_#g')
 	M_COUNT=$(echo "$MIRRORS" | wc -l)
 	if [ "$M_COUNT" -eq 1 ]; then
 		URL=$(MIRROR_FILTER "$MIRRORS")
@@ -371,10 +374,17 @@ do
 		URL=$(MIRROR_FILTER "$MIRROR")
 	fi
 	FILE_PATH="$DL_PATH/$DIR"
+	FULL_PATH="$FILE_PATH/$FILENAME"
 	while :
 	do
 		ERROR=CONT
 		read -p "View (v) or save (s) video? (b) to go back (q) to quit. >> " CHOICE 2>&1
+		if [ -f "$FULL_PATH" -a $CHOICE == s ]; then
+			read -p "$FILENAME already exists. Press (y) to overwrite or enter to go back. >> " CHOICE_2 2>&1
+			if [ "$CHOICE_2" != y ]; then
+				break
+			fi
+		fi
 		QUIT $CHOICE
 		BACK $CHOICE
 		if [ "$CHOICE" == s ]; then
@@ -442,7 +452,9 @@ while [ $1 -le $2 ]
 do
 	PAGE=$(echo "$3" | sed -n "$1"p | GET - -)
 	MIRRORS=$(MIRROR_SCRAPER "$PAGE")
+	echo "$MIRRORS" >> $TEMP_PATH/log.txt
 	if [ -z "$MIRRORS" ]; then
+		echo -ne $'\a'
 		read -p "Can't detect a working mirror. Press enter to continue to the next episode or (c) to cancel. >> " CHOICE 2>&1
 		if [ "$CHOICE" == c ]; then
 			break
@@ -451,18 +463,49 @@ do
 			continue
 		fi
 	fi
-	MIRROR=$(echo "$MIRRORS" | sed -n 1p)
-	TITLE=$(echo "$PAGE"\
-		| grep -o " / .*</p"\
-		| sed -e 's/ \/ //' -e 's/<\/p//'\
-		| sed "s/&#039;/'/g"\
-		| sed 's/&amp;/\&/g')
-	DIR=$(echo "$TITLE" | sed 's/ Episode.*$//')
-	URL=$(MIRROR_FILTER "$MIRROR")
-	FILE_PATH="$DL_PATH/$DIR"
-	FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/' -e 's/$/.mp4/')
-	DOWNLOADER "$URL" "$FILE_PATH" "$FILENAME"
-	set -- "$(expr $1 + 1)" "${@:2:3}"
+	M_COUNT=$(echo "$MIRRORS" | wc -l)
+	M_NUM=1
+	while [ $M_NUM -le $M_COUNT ]
+	do
+		MIRROR=$(echo "$MIRRORS" | sed -n "$M_NUM"p)
+		TITLE=$(echo "$PAGE"\
+			| grep -o " / .*</p"\
+			| sed -e 's/ \/ //' -e 's/<\/p//'\
+			| sed "s/&#039;/'/g"\
+			| sed 's/&amp;/\&/g')
+		DIR=$(echo "$TITLE" | sed -e 's/ Episode.*$//' -e 's#[<>:"/\|?*]#_#g')
+		URL=$(MIRROR_FILTER "$MIRROR")
+		FILE_PATH="$DL_PATH/$DIR"
+		FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/'\
+									   -e 's/$/.mp4/'\
+									   -e 's#[<>:"/\|?*]#_#g')
+		# FULL_PATH="$FILE_PATH/$FILENAME"
+		# if [ -f $FULL_PATH -a $CHOICE == s ]; then
+		# 	echo -ne $'\a'
+		# 	read -p "$FILENAME already exists. Press (y) to overwrite or enter to continue to the next episode. >> " CHOICE_2 2>&1
+		# 	if [ "$CHOICE_2" != y ]; then
+		# 		set -- "$(expr $1 + 1)" "${@:2:3}"
+		# 		break
+		# 	fi
+		# fi
+		DOWNLOADER "$URL" "$FILE_PATH" "$FILENAME"
+		if [ $? != 0 ];then
+			M_NUM=$(expr $M_NUM + 1)
+			echo "Seems there was an error, trying a different mirror"
+			continue
+		else
+			set -- "$(expr $1 + 1)" "${@:2:3}"
+			break
+		fi
+	done
+	# echo -ne $'\a'
+	# read -p "Can't detect a working mirror. Press enter to continue to the next episode or (c) to cancel. >> " CHOICE 2>&1
+	# if [ "$CHOICE" == c ]; then
+	# 	break
+	# else
+	# 	set -- "$(expr $1 + 1)" "${@:2:3}"
+	# 	continue
+	# fi
 done
 echo -ne $'\a'
 read -p "Done! Press enter to continue." 2>&1

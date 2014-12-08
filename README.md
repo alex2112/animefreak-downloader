@@ -11,5 +11,6 @@ For example:
 	animefreak-downloader.sh monogatari 
 
 Wget needs to be intalled for the download part. Mplayer (optional) for viewing videos.
+Tested on Debian/Ubuntu and Windows with Cygwin.
 
 As always, please do not abuse the service.
