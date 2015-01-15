@@ -82,6 +82,25 @@ if [ $1 == b ]; then
 fi
 }
 
+IS_NEXT() {
+if [ $1 == n ]; then
+	PAGE_COUNT=$(expr $PAGE_COUNT + 1)
+	break
+fi
+}
+
+IS_PREV() {
+if [ $1 == p ]; then
+	PAGE_COUNT=$(expr $PAGE_COUNT - 1)
+	if [ $PAGE_COUNT -lt 0 ]; then
+		PAGE_COUNT=0
+		continue
+	else
+		break
+	fi
+fi
+}
+
 IS_NUM() {
 if ! [[ $1 =~ ^[0-9]+$ ]]; then
 	echo "Not a valid number or option"
@@ -316,7 +335,9 @@ do
 	clear
 	R_COUNT=$(echo "$1" | wc -l)
 	echo "$2" | awk '{print NR, $0}' | more 2>&1
-	read -p "Select an episode (1-50), (r) to download range, (q) to quit. >> " EP 2>&1
+	read -p "Select an episode (1-50), (r) to download range, (n/p) next/previous 50 episodes, (q) to quit. >> " EP 2>&1
+	IS_NEXT $EP
+	IS_PREV $EP
 	IS_RANGE $EP "$1"
 	QUIT $EP
 	IS_NUM $EP
@@ -400,7 +421,7 @@ do
 			if [ $? != 0 ];then
 				ERROR=TRUE
 			else
-				ERROR=FALSE
+				ERROR=NA
 			fi
 			break
 		else
@@ -416,6 +437,8 @@ do
 		fi
 	elif [ $ERROR == "CONT" ]; then
 		break
+	elif [ $ERROR == "NA" ]; then
+		continue
 	elif [ $ERROR == "FALSE" ]; then
 		echo -ne $'\a'
 		read -p "Done! Press enter to continue." 2>&1
@@ -511,6 +534,12 @@ echo -ne $'\a'
 read -p "Done! Press enter to continue." 2>&1
 }
 
+MORE_50() {
+# Accepts 1 argument (trackers page number)
+	MORE="$BASE_URL/views/ajax?js=1&page=$1&view_name=tracker&view_display_id=page&view_path=tracker&view_base_path=tracker&view_dom_id=1&pager_element=0&view_args="
+	GET $MORE -
+}
+
 if [ "$1" == -h ]; then
 	HELP
 	exit
@@ -527,15 +556,30 @@ elif [ "$SEARCH" ]; then
 	done
 else
 	echo "Getting latest episodes."
-	TRACKER=$(GET "$BASE_URL/tracker" -)
-	EP_LINKS=$(echo "$TRACKER"\
-		| grep -o '"/w.*"'\
-		| sed -e "s#^#$BASE_URL#" -e 's/"//g')
-	EP_TITLES=$(echo "$TRACKER"\
-		| grep -o '"/w.*</a'\
-		| grep -o '>.*<'\
-		| sed 's/[<>]//g'\
-		| sed "s/&#039;/'/g"\
-		| sed 's/&amp;/\&/g')
-	LATEST "$EP_LINKS" "$EP_TITLES"
+	PAGE_COUNT=0
+	while :
+	do
+		TRACKER=$(MORE_50 $PAGE_COUNT)
+		EP_LINKS=$(echo $TRACKER\
+			| sed 's/href/\nhref/g'\
+			| grep -o "watch.*\\x3c/a"\
+			| sed -e 's#\\"\\x3e#\t#' -e 's#\\x3c/a##'\
+			| grep -o "^.*	" | sed "s#^#$BASE_URL/#")
+		EP_TITLES=$(echo $TRACKER\
+			| sed 's/href/\nhref/g'\
+			| grep -o "watch.*\\x3c/a"\
+			| sed -e 's#\\"\\x3e#\t#' -e 's#\\x3c/a##'\
+			| grep -o "	.*$" | sed 's/\t//')
+	# TRACKER=$(GET "$BASE_URL/tracker" -)
+	# EP_LINKS=$(echo "$TRACKER"\
+	# 	| grep -o '"/w.*"'\
+	# 	| sed -e "s#^#$BASE_URL#" -e 's/"//g')
+	# EP_TITLES=$(echo "$TRACKER"\
+	# 	| grep -o '"/w.*</a'\
+	# 	| grep -o '>.*<'\
+	# 	| sed 's/[<>]//g'\
+	# 	| sed "s/&#039;/'/g"\
+	# 	| sed 's/&amp;/\&/g')
+		LATEST "$EP_LINKS" "$EP_TITLES"
+	done
 fi
