@@ -239,6 +239,12 @@ URL_DEC() {
 local d=${1//+/ }; printf '%b' "${d//%/\x}";
 }
 
+MORE_50() {
+# Accepts 1 argument (trackers page number)
+	MORE="$BASE_URL/views/ajax?js=1&page=$1&view_name=tracker&view_display_id=page&view_path=tracker&view_base_path=tracker&view_dom_id=1&pager_element=0&view_args="
+	GET $MORE -
+}
+
 HELP() {
 echo "\
 Interactive script for viewing or downloading videos from Animefreak.tv.
@@ -534,11 +540,6 @@ echo -ne $'\a'
 read -p "Done! Press enter to continue." 2>&1
 }
 
-MORE_50() {
-# Accepts 1 argument (trackers page number)
-	MORE="$BASE_URL/views/ajax?js=1&page=$1&view_name=tracker&view_display_id=page&view_path=tracker&view_base_path=tracker&view_dom_id=1&pager_element=0&view_args="
-	GET $MORE -
-}
 
 if [ "$1" == -h ]; then
 	HELP
@@ -569,17 +570,10 @@ else
 			| sed 's/href/\nhref/g'\
 			| grep -o "watch.*\\x3c/a"\
 			| sed -e 's#\\"\\x3e#\t#' -e 's#\\x3c/a##'\
-			| grep -o "	.*$" | sed 's/\t//')
-	# TRACKER=$(GET "$BASE_URL/tracker" -)
-	# EP_LINKS=$(echo "$TRACKER"\
-	# 	| grep -o '"/w.*"'\
-	# 	| sed -e "s#^#$BASE_URL#" -e 's/"//g')
-	# EP_TITLES=$(echo "$TRACKER"\
-	# 	| grep -o '"/w.*</a'\
-	# 	| grep -o '>.*<'\
-	# 	| sed 's/[<>]//g'\
-	# 	| sed "s/&#039;/'/g"\
-	# 	| sed 's/&amp;/\&/g')
+			| grep -o "	.*$" | sed 's/\t//'\
+			| sed 's/\\x26/\&/g'\
+			| sed "s/&#039;/'/g"\
+			| sed 's/&amp;/\&/g')
 		LATEST "$EP_LINKS" "$EP_TITLES"
 	done
 fi
