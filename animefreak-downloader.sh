@@ -5,7 +5,7 @@ DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
 ### END CONFIGURATION ###
 
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:34.0) Gecko/20100101 Firefox/34.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:36.0) Gecko/20100101 Firefox/36.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
@@ -185,8 +185,8 @@ M2=$(echo "$PASS_1" | egrep -o "http.*freak.*e=.{10}&st=.{22}") # matches animef
 M3=$(echo "$PASS_1" | egrep -o "http://www.mp4up.*\.html")
 M4=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
 M5=$(echo "$PASS_1" | egrep -o "http://videobam..*")
-M6=$(echo "$PASS_1" | egrep -o "http.*videow.*v=.{13}" | sed 's/"//g')
-M7=$(echo "$PASS_1" | egrep -o "http.*nova.*v=.{13}")
+M6=$(echo "$PASS_1" | egrep -o "http://embed.videow.*v=.{13}" | sed 's/"//g')
+M7=$(echo "$PASS_1" | egrep -o "http://embed.nova.*v=.{13}")
 # M8=$(echo "$PASS_1" | egrep -o "http.*freak.*e=h&st=h") # matches animefreak.new
 echo -e "$M1\n$M2\n$M3\n$M4\n$M5\n$M6\n$M7" | awk ' !x[$0]++' | sed '/^$/d'
 }
@@ -276,7 +276,11 @@ do
 	LINKS=$(echo "$RESULTS"\
 		| grep -o '^.*"'\
 		| sed -e "s#^#$BASE_URL#" -e 's/"//')
-	TITLES=$(echo "$RESULTS" | grep -o '".*$' | sed 's/"//')
+	TITLES=$(echo "$RESULTS"\
+		| grep -o '".*$' | sed 's/"//'\
+		| sed 's/\\x26/\&/g'\
+		| sed "s/&#039;/'/g"\
+		| sed 's/&amp;/\&/g')
 	R_COUNT=$(echo "$RESULTS" | wc -l)
 	if [ -z "$RESULTS" ]; then
 		read -p "No title found containing the word(s) $SEARCH. Search for? >> " SEARCH 2>&1
