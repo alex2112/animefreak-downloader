@@ -5,7 +5,7 @@ DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
 ### END CONFIGURATION ###
 
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:36.0) Gecko/20100101 Firefox/36.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:36.0) Gecko/20100101 Firefox/37.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
@@ -231,12 +231,12 @@ wget -U "$USER_AGENT" "$1" -O "$2/$3" 2>&1
 
 PLAYER() {
 # Accepts 1 arg: the url ($URL) to be played
-mplayer -msglevel all=1 -user-agent "$USER_AGENT" "$1"
+mplayer -msglevel all=-1 -user-agent "$USER_AGENT" "$1"
 }
 
 URL_DEC() {
-# Decodes 
-local d=${1//+/ }; printf '%b' "${d//%/\x}";
+# URL decoder
+local d=${1//+/ }; printf '%b' "${d//%/\\x}";
 }
 
 MORE_50() {
