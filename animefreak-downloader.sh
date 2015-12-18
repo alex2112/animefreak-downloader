@@ -5,21 +5,22 @@ DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
 ### END CONFIGURATION ###
 
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:36.0) Gecko/20100101 Firefox/37.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:43.0) Gecko/20100101 Firefox/43.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
 # Redirect errors to log file
 mkdir -p $TEMP_PATH
-exec 2>$TEMP_PATH/log.txt
+exec 2> $TEMP_PATH/log.txt
 
 ###################### MIRRORS #########################
 # Accepts 1 arg: html response from the server ($RESPONSE)
 ANIMEFREAK() {
-URL_DEC "$1"\
-	| grep "movie"\
-	| egrep -o -e "=http..*st=.{22}" -e "=http..*e=.{10}"\
-	| sed 's/=//'
+echo "$1" | grep -Po "http.*anime1.*st=.{22}&e=.{10}"
+# URL_DEC "$1"\
+# 	| grep "movie"\
+# 	| egrep -o -e "=http..*st=.{22}" -e "=http..*e=.{10}"\
+# 	| sed 's/=//'
 }
 
 UPLOAD2() {
@@ -65,6 +66,12 @@ FILE=$(echo "$1"\
 RESPONSE_2=""$HOST"file="$FILE"&key="$KEY""
 RESPONSE_2=$(URL_DEC "$(GET "$RESPONSE_2" -)")
 echo "$RESPONSE_2" | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/'
+}
+
+SAFEUPLOAD() {
+SUBS=$(echo "$1" | grep -o "http.*safeupload.org.*subtitles.*.vtt")
+GET "$SUBS" "$TEMP_PATH/subs.srt"
+echo "$1" | grep -o "https.*googleusercontent.*=m.."
 }
 
 ################## INPUT CHECKS ####################
@@ -163,9 +170,9 @@ fi
 GET() {
 # Accepts 2 args: url or stdin and file or stdout
 if [ "$1" == "-" ]; then
-	wget -nv -U "$USER_AGENT" -i "$1" -O "$2"
+	wget -nv --referer="$BASE_URL" -U "$USER_AGENT" -i "$1" -O "$2"
 else
-	wget -nv -U "$USER_AGENT" "$1" -O "$2"
+	wget -nv --referer="$BASE_URL" -U "$USER_AGENT" "$1" -O "$2"
 fi
 }
 
@@ -178,17 +185,20 @@ PASS_1=$(echo "$1"\
 		   -e "upload2"\
 		   -e "videobam"\
 		   -e "novamov"\
-		   -e "videoweed")
+		   -e "videoweed"\
+		   -e "safeupload")
 PASS_1=$(URL_DEC "$PASS_1")
+# The order in which the mirrors appear is been decided here
 M1=$(echo "$PASS_1" | egrep -o "http.*st=.{22}&e=.{10}") # matches anime1.com, raw ips
-M2=$(echo "$PASS_1" | egrep -o "http.*freak.*e=.{10}&st=.{22}") # matches animefreak.old
+M2=$(echo "$PASS_1" | egrep -o "http.*freak.*e=h&st=h") # matches animefreak.new
 M3=$(echo "$PASS_1" | egrep -o "http://www.mp4up.*\.html")
-M4=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
-M5=$(echo "$PASS_1" | egrep -o "http://videobam..*")
-M6=$(echo "$PASS_1" | egrep -o "http://embed.videow.*v=.{13}" | sed 's/"//g')
-M7=$(echo "$PASS_1" | egrep -o "http://embed.nova.*v=.{13}")
-# M8=$(echo "$PASS_1" | egrep -o "http.*freak.*e=h&st=h") # matches animefreak.new
-echo -e "$M1\n$M2\n$M3\n$M4\n$M5\n$M6\n$M7" | awk ' !x[$0]++' | sed '/^$/d'
+M4=$(echo "$PASS_1" | egrep -o "http.*safeupload.org/getembed/.{32}")
+M5=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
+M6=$(echo "$PASS_1" | egrep -o "http://videobam..*")
+M7=$(echo "$PASS_1" | egrep -o "http://embed.videow.*v=.{13}" | sed 's/"//g')
+M8=$(echo "$PASS_1" | egrep -o "http://embed.nova.*v=.{13}")
+M9=$(echo "$PASS_1" | egrep -o "http.*freak.*e=.{10}&st=.{22}") # matches animefreak.old
+echo -e "$M1\n$M2\n$M3\n$M4\n$M5\n$M6\n$M7\n$M8\n$M9" | awk ' !x[$0]++' | sed '/^$/d'
 }
 
 MIRROR_FILTER() {
@@ -200,11 +210,13 @@ TYPE=$(echo "$1"\
 			  -e "mp4upload"\
 			  -e "videobam"\
 			  -e "videoweed"\
-			  -e "novamov")
+			  -e "novamov"\
+			  -e "safeupload")
 if [ "$TYPE" == "" ]; then
 	echo "$1"
 else
 	RESPONSE=$(GET "$1" -)
+	# echo "$RESPONSE" > $TEMP_PATH/response.htm
 	if [ "$TYPE" == "animefreak.tv" ]; then
 		ANIMEFREAK "$RESPONSE"
 	elif [ "$TYPE" == upload2 ]; then
@@ -217,6 +229,8 @@ else
 		VIDEOWEED "$RESPONSE"
 	elif [ "$TYPE" == novamov ]; then
 		NOVAMOV "$RESPONSE"
+	elif [ "$TYPE" == safeupload ]; then
+		SAFEUPLOAD "$RESPONSE"
 	fi
 fi
 }
@@ -230,8 +244,12 @@ wget -U "$USER_AGENT" "$1" -O "$2/$3" 2>&1
 }
 
 PLAYER() {
-# Accepts 1 arg: the url ($URL) to be played
-mplayer -msglevel all=-1 -user-agent "$USER_AGENT" "$1"
+# Accepts 2 arg: the url ($URL) to be played and subtitles $SUBTITLES if any
+if [ "$2" ]; then
+	mpv -really-quiet -user-agent "$USER_AGENT" -sub-file "$2" "$1"
+else
+	mpv -really-quiet -user-agent "$USER_AGENT" "$1"
+fi
 }
 
 URL_DEC() {
@@ -249,19 +267,14 @@ HELP() {
 echo "\
 Interactive script for viewing or downloading videos from Animefreak.tv.
 
-Downloading of single episodes, range of episodes or entire series is
-possible.
-
 Calling the script without arguments will list the latest uploaded
 videos (max 50 entries). Append a search term after the command to
 \"grep\" the entire catalog of Animefreak. For example:
 
 ./animefreak-downloader.sh monogatari
 
-Wget needs to be intalled for downloading. Mplayer (optional) for
-viewing videos. Tested on Debian/Ubuntu and Windows with Cygwin.
-
-As always, please do not abuse the service.
+Wget needs to be intalled for downloading. mpv (optional) for
+viewing videos.
 
 Options:	-h 	     print this help tip"
 }
@@ -378,9 +391,12 @@ do
 	FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/'\
 								   -e 's/$/.mp4/'\
 							 	   -e 's#[<>:"/\|?*]#_#g')
+	SUB_FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/'\
+									   -e 's/$/.srt/'\
+								 	   -e 's#[<>:"/\|?*]#_#g')
 	M_COUNT=$(echo "$MIRRORS" | wc -l)
 	if [ "$M_COUNT" -eq 1 ]; then
-		URL=$(MIRROR_FILTER "$MIRRORS")
+		MIRROR=$MIRRORS
 	else
 		clear
 		echo "$MIRRORS"\
@@ -392,8 +408,10 @@ do
 					  -e "novamov.com"\
 					  -e "videoweed.es"\
 					  -e "anime1.com"\
-			| sed -e 's/http://'\
-				  -e 's/\///g'\
+					  -e "safeupload.org"\
+			| sed -e 's/safeupload.org/safeupload.org <--- Usually in 360p 720p 1080p and external subtitles./'\
+				  -e 's/novamov.com/novamov.com <--- NOT WORKING/'\
+				  -e 's/videoweed.es/videoweed.es <--- NOT WORKING/'\
 			| awk '{print NR, $0}'
 		read -p "There are $M_COUNT mirrors for $TITLE Select a number and press enter, (b) to go back, (q) to quit. >> " M_NUM 2>&1
 		QUIT $M_NUM
@@ -402,7 +420,28 @@ do
 		IS_ZERO $M_NUM
 		IS_GREATER $M_NUM $M_COUNT
 		MIRROR=$(echo "$MIRRORS" | sed -n "$M_NUM"p)
-		URL=$(MIRROR_FILTER "$MIRROR")
+	fi
+	URL=$(MIRROR_FILTER "$MIRROR")
+	IS_SAFEUPLOAD=$(echo "$MIRROR" | grep -o safeupload) 
+	if [ "$IS_SAFEUPLOAD" == safeupload ]; then
+		SUBTITLES="$TEMP_PATH/subs.srt" 
+		M_COUNT=$(echo "URL" | wc -l)
+		while :
+		do
+			echo "$URL" | sed -e 's/.*m18$/360p/'\
+						 	  -e 's/.*m22$/720p/'\
+							  -e 's/.*m37$/1080/'\
+						| awk '{print NR, $0}'
+			read -p "Choose a resolution. Subtitles automatically will be downloaded." QUAL 2>&1
+			if [ $QUAL -le $M_COUNT -a $QUAL -gt 0 ]; then
+				URL=$(echo "$URL" | sed -n "$QUAL"p)
+				break
+			else
+				continue
+			fi
+		done
+	else
+		SUBTITLES="" 
 	fi
 	FILE_PATH="$DL_PATH/$DIR"
 	FULL_PATH="$FILE_PATH/$FILENAME"
@@ -419,6 +458,10 @@ do
 		QUIT $CHOICE
 		BACK $CHOICE
 		if [ "$CHOICE" == s ]; then
+			if [ "$IS_SAFEUPLOAD" == safeupload ]; then
+				mkdir -p "$FILE_PATH"
+				mv "$SUBTITLES" "$FILE_PATH/$SUB_FILENAME"
+			fi
 			DOWNLOADER "$URL" "$FILE_PATH" "$FILENAME"
 			if [ $? != 0 ];then
 				ERROR=TRUE
@@ -427,7 +470,7 @@ do
 			fi
 			break
 		elif [ "$CHOICE" == v ]; then
-			PLAYER "$URL"
+			PLAYER "$URL" "$SUBTITLES"
 			if [ $? != 0 ];then
 				ERROR=TRUE
 			else
@@ -512,6 +555,16 @@ do
 		FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/'\
 									   -e 's/$/.mp4/'\
 									   -e 's#[<>:"/\|?*]#_#g')
+		SUB_FILENAME=$(echo "$TITLE" | sed -e 's/ Episode /.ep/'\
+										   -e 's/$/.srt/'\
+										   -e 's#[<>:"/\|?*]#_#g')
+		IS_SAFEUPLOAD=$(echo "$MIRROR" | grep -o safeupload) 
+		if [ "$IS_SAFEUPLOAD" == safeupload ]; then
+			SUBTITLES="$TEMP_PATH/subs.srt" 
+			URL=$(echo "$URL" | tail -n 1)
+			mkdir -p "$FILE_PATH"
+			mv "$SUBTITLES" "$FILE_PATH/$SUB_FILENAME"
+		fi
 		# FULL_PATH="$FILE_PATH/$FILENAME"
 		# if [ -f $FULL_PATH -a $CHOICE == s ]; then
 		# 	echo -ne $'\a'
@@ -569,12 +622,12 @@ else
 			| sed 's/href/\nhref/g'\
 			| grep -o "watch.*\\x3c/a"\
 			| sed -e 's#\\"\\x3e#\t#' -e 's#\\x3c/a##'\
-			| grep -o "^.*	" | sed "s#^#$BASE_URL/#")
+			| grep -Po "^.*\t" | sed "s#^#$BASE_URL/#")
 		EP_TITLES=$(echo $TRACKER\
 			| sed 's/href/\nhref/g'\
 			| grep -o "watch.*\\x3c/a"\
 			| sed -e 's#\\"\\x3e#\t#' -e 's#\\x3c/a##'\
-			| grep -o "	.*$" | sed 's/\t//'\
+			| grep -Po "\t.*$" | sed 's/\t//'\
 			| sed 's/\\x26/\&/g'\
 			| sed "s/&#039;/'/g"\
 			| sed 's/&amp;/\&/g')
