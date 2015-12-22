@@ -268,8 +268,8 @@ echo "\
 Interactive script for viewing or downloading videos from Animefreak.tv.
 
 Calling the script without arguments will list the latest uploaded
-videos (max 50 entries). Append a search term after the command to
-\"grep\" the entire catalog of Animefreak. For example:
+videos. Append a search term after the command to \"grep\" the
+entire catalog of Animefreak. For example:
 
 ./animefreak-downloader.sh monogatari
 
@@ -425,7 +425,7 @@ do
 	IS_SAFEUPLOAD=$(echo "$MIRROR" | grep -o safeupload) 
 	if [ "$IS_SAFEUPLOAD" == safeupload ]; then
 		SUBTITLES="$TEMP_PATH/subs.srt" 
-		M_COUNT=$(echo "URL" | wc -l)
+		M_COUNT=$(echo "$URL" | wc -l)
 		while :
 		do
 			echo "$URL" | sed -e 's/.*m18$/360p/'\
