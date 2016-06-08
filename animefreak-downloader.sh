@@ -5,7 +5,7 @@ DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
 ### END CONFIGURATION ###
 
-USER_AGENT="Mozilla/5.0 (X11; Linux i686; rv:43.0) Gecko/20100101 Firefox/43.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
@@ -31,7 +31,8 @@ echo "$1"\
 }
 
 MP4UPLOAD() {
-echo "$1" | grep "file" | grep -o "http.*mp4'"
+# echo "$1" | grep "file" | grep -o "http.*mp4'"
+echo "$1" | grep "file" | grep -o "http.*mp4" | sed -n 1p 
 }
 
 VIDEOBAM() {
@@ -240,7 +241,7 @@ DOWNLOADER() {
 # and the filename ($FILENAME)
 echo
 mkdir -p "$2"
-wget -U "$USER_AGENT" "$1" -O "$2/$3" 2>&1
+wget -U "$USER_AGENT" --referer="$BASE_URL" "$1" -O "$2/$3" 2>&1
 }
 
 PLAYER() {
