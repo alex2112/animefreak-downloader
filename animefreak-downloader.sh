@@ -3,6 +3,21 @@
 ### CONFIGURATION ###
 DL_PATH=$HOME/Downloads # Default: $HOME/Downloads
 TEMP_PATH=/tmp/animefreak_dl # Default: /tmp/animefreak_dl
+DOWN_UTIL=wget # alternative: aria2c 
+MAX_CONNECTIONS=2 # only applicable for aria2c
+# The order mirrors appear during selection
+# In batch mode this order will be used as well from top falling back to the next till reaches the bottom
+SERVER_ORDER="
+M_ANIMEFREAK1
+M_ANIMEFREAK2
+M_MP4UPLOAD
+M_SAFEUPLOAD
+M_ANIME1_RAW
+M_UPLOAD2
+M_VIDEOBAM
+M_VIDEOWEED
+M_NOVAMOV
+"
 ### END CONFIGURATION ###
 
 USER_AGENT="Mozilla/5.0 (X11; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0"
@@ -189,17 +204,37 @@ PASS_1=$(echo "$1"\
 		   -e "videoweed"\
 		   -e "safeupload")
 PASS_1=$(URL_DEC "$PASS_1")
-# The order in which the mirrors appear is been decided here
-M1=$(echo "$PASS_1" | egrep -o "http.*st=.{22}&e=.{10}") # matches anime1.com, raw ips
-M2=$(echo "$PASS_1" | egrep -o "http.*freak.*e=h&st=h") # matches animefreak.new
-M3=$(echo "$PASS_1" | egrep -o "http://www.mp4up.*\.html")
-M4=$(echo "$PASS_1" | egrep -o "http.*safeupload.org/getembed/.{32}")
-M5=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
-M6=$(echo "$PASS_1" | egrep -o "http://videobam..*")
-M7=$(echo "$PASS_1" | egrep -o "http://embed.videow.*v=.{13}" | sed 's/"//g')
-M8=$(echo "$PASS_1" | egrep -o "http://embed.nova.*v=.{13}")
-M9=$(echo "$PASS_1" | egrep -o "http.*freak.*e=.{10}&st=.{22}") # matches animefreak.old
-echo -e "$M1\n$M2\n$M3\n$M4\n$M5\n$M6\n$M7\n$M8\n$M9" | awk ' !x[$0]++' | sed '/^$/d'
+M_ANIME1_RAW=$(echo "$PASS_1" | egrep -o "http.*st=.{22}&e=.{10}") # matches anime1.com, raw ips
+M_ANIMEFREAK1=$(echo "$PASS_1" | egrep -o "http.*freak.*e=h&st=h") # matches animefreak.new
+M_MP4UPLOAD=$(echo "$PASS_1" | egrep -o "http://www.mp4up.*\.html")
+M_SAFEUPLOAD=$(echo "$PASS_1" | egrep -o "http.*safeupload.org/getembed/.{32}")
+M_UPLOAD2=$(echo "$PASS_1" | egrep -o "http.*upload2.*embed/.{10}")
+M_VIDEOBAM=$(echo "$PASS_1" | egrep -o "http://videobam..*")
+M_VIDEOWEED=$(echo "$PASS_1" | egrep -o "http://embed.videow.*v=.{13}" | sed 's/"//g')
+M_NOVAMOV=$(echo "$PASS_1" | egrep -o "http://embed.nova.*v=.{13}")
+M_ANIMEFREAK2=$(echo "$PASS_1" | egrep -o "http.*freak.*e=.{10}&st=.{22}") # matches animefreak.old and new?
+BUFFER=
+for i in $(echo "$SERVER_ORDER")
+do
+  if [ "$i" == "M_ANIME1_RAW" ]; then
+    BUFFER="$BUFFER\n$M_ANIME1_RAW"
+  elif [ "$i" == "M_ANIMEFREAK1" ]; then
+    BUFFER="$BUFFER\n$M_ANIMEFREAK1"
+  elif [ "$i" == "M_MP4UPLOAD" ]; then
+    BUFFER="$BUFFER\n$M_MP4UPLOAD"
+  elif [ "$i" == "M_UPLOAD2" ]; then
+    BUFFER="$BUFFER\n$M_UPLOAD2"
+  elif [ "$i" == "M_VIDEOBAM" ]; then
+    BUFFER="$BUFFER\n$M_VIDEOBAM"
+  elif [ "$i" == "M_VIDEOWEED" ]; then
+    BUFFER="$BUFFER\n$M_VIDEOWEED"
+  elif [ "$i" == "M_ANIMEFREAK2" ]; then
+    BUFFER="$BUFFER\n$M_ANIMEFREAK2"
+  elif [ "$i" == "M_SAFEUPLOAD" ]; then
+    BUFFER="$BUFFER\n$M_SAFEUPLOAD"
+  fi
+done
+echo -e "$BUFFER" | awk ' !x[$0]++' | sed '/^$/d'
 }
 
 MIRROR_FILTER() {
@@ -241,7 +276,11 @@ DOWNLOADER() {
 # and the filename ($FILENAME)
 echo
 mkdir -p "$2"
-wget -U "$USER_AGENT" --referer="$BASE_URL" "$1" -O "$2/$3" 2>&1
+if [ "$DOWN_UTIL" == wget ]; then
+  wget -U "$USER_AGENT" --referer="$BASE_URL" "$1" -O "$2/$3" 2>&1
+elif [ "$DOWN_UTIL" == aria2c ]; then
+  aria2c -U "$USER_AGENT" --referer="$BASE_URL" -x"$MAX_CONNECTIONS" "$1" -d "$2" -o "$3"
+fi
 }
 
 PLAYER() {
@@ -451,9 +490,11 @@ do
 		ERROR=CONT
 		read -p "View (v) or save (s) video? (b) to go back (q) to quit. >> " CHOICE 2>&1
 		if [ -f "$FULL_PATH" -a $CHOICE == s ]; then
-			read -p "$FILENAME already exists. Press (y) to overwrite or enter to go back. >> " CHOICE_2 2>&1
-			if [ "$CHOICE_2" != y ]; then
-				break
+			read -p "$FILENAME already exists. Press (y) to overwrite, (b) to go back. Press enter to continue partial download (aria2 only and you MUST use the same mirror). >> " CHOICE_2 2>&1
+			if [ "$CHOICE_2" == y ]; then
+        rm "$FULL_PATH"
+			elif [ "$CHOICE_2" == b ]; then
+        break
 			fi
 		fi
 		QUIT $CHOICE
