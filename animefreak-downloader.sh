@@ -46,8 +46,8 @@ echo "$1"\
 }
 
 MP4UPLOAD() {
-# echo "$1" | grep "file" | grep -o "http.*mp4'"
-echo "$1" | grep "file" | grep -o "http.*mp4" | sed -n 1p 
+echo "$1" | grep "file" | grep -o "http.*\/d\/.*mp4" 
+
 }
 
 VIDEOBAM() {
