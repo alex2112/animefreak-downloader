@@ -195,8 +195,10 @@ fi
 MIRROR_SCRAPER() {
 # Accepts 1 arg: html page of episode ($PAGE)
 # "Fst" matches: anime1.com, raw ips, animefreak.old, animefreak.new
+# iframe matches animefreak.new
 PASS_1=$(echo "$1"\
 	| grep -e "Fst"\
+       -e "iframe"\
 		   -e "mp4upload"\
 		   -e "upload2"\
 		   -e "videobam"\
