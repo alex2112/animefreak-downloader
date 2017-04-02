@@ -20,6 +20,14 @@ M_NOVAMOV
 "
 ### END CONFIGURATION ###
 
+# Optional configuration file
+# Copy the configuration section above into a file defined in the path below to overide the defaults.
+CONFIG=~/.config/animefreak-downloader/config
+
+if [ -f "$CONFIG" ]; then
+  source $CONFIG
+fi
+
 USER_AGENT="Mozilla/5.0 (X11; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
@@ -85,7 +93,7 @@ echo "$RESPONSE_2" | sed -e 's/url=//' -e 's/.flv.*$/.flv?client=FLASH/'
 }
 
 SAFEUPLOAD() {
-SUBS=$(echo "$1" | grep -o "http.*safeupload.org.*subtitles.*.vtt")
+SUBS=$(echo "$1" | grep -o "safeupload.org.*subtitles.*.vtt")
 GET "$SUBS" "$TEMP_PATH/subs.srt"
 echo "$1" | grep -o "https.*googleusercontent.*=m.."
 }
