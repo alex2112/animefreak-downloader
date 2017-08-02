@@ -28,7 +28,7 @@ if [ -f "$CONFIG" ]; then
   source $CONFIG
 fi
 
-USER_AGENT="Mozilla/5.0 (X11; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0"
+USER_AGENT="Mozilla/5.0 (X11; Linux x86_64; rv:56.0) Gecko/20100101 Firefox/56.0"
 BASE_URL="http://www.animefreak.tv"
 SEARCH=$@
 
@@ -55,7 +55,6 @@ echo "$1"\
 
 MP4UPLOAD() {
 echo "$1" | grep "file" | grep -o "http.*\/d\/.*mp4" 
-
 }
 
 VIDEOBAM() {
@@ -107,89 +106,89 @@ if [ $1 == q ]; then
 fi
 }
 
-BACK() {
-if [ $1 == b ]; then
-	break
-fi
-}
-
-IS_NEXT() {
-if [ $1 == n ]; then
-	PAGE_COUNT=$(expr $PAGE_COUNT + 1)
-	break
-fi
-}
-
-IS_PREV() {
-if [ $1 == p ]; then
-	PAGE_COUNT=$(expr $PAGE_COUNT - 1)
-	if [ $PAGE_COUNT -lt 0 ]; then
-		PAGE_COUNT=0
-		continue
-	else
-		break
-	fi
-fi
-}
-
-IS_NUM() {
-if ! [[ $1 =~ ^[0-9]+$ ]]; then
-	echo "Not a valid number or option"
-	sleep 1
-	continue
-fi
-}
-
-IS_GREATER() {
-if [ $1 -gt $2 ]; then
-	echo "Not a valid number or option"
-	sleep 1
-	continue
-fi
-}
-
-IS_ZERO() {
-if [ $1 -eq 0 ]; then
-	echo "Can not be 0"
-	sleep 1
-	continue
-fi
-}
-
-NA() {
-echo "Not a valid option"
-sleep 1
-continue
-}
-
-SEARCH_BR() {
-if [ "$1" == s ]; then
-	read -p "Search for? >> " SEARCH 2>&1
-	break
-fi
-}
-
-SEARCH_CONT() {
-if [ "$1" == s ]; then
-	read -p "Search for? >> " SEARCH 2>&1
-	continue
-fi
-}
-
-IS_RANGE() {
-if [ $1 == r ]; then
-	RANGE "$2"
-	continue
-fi
-}
-
-IS_ALL() {
-if [ "$1" == a ]; then
-	BATCH "$2" "$3" "$4"
-	continue
-fi
-}
-
+# BACK() {
+# if [ $1 == b ]; then
+# 	break
+# fi
+# }
+#
+# IS_NEXT() {
+# if [ $1 == n ]; then
+# 	PAGE_COUNT=$(expr $PAGE_COUNT + 1)
+# 	break
+# fi
+# }
+#
+# IS_PREV() {
+# if [ $1 == p ]; then
+# 	PAGE_COUNT=$(expr $PAGE_COUNT - 1)
+# 	if [ $PAGE_COUNT -lt 0 ]; then
+# 		PAGE_COUNT=0
+# 		continue
+# 	else
+# 		break
+# 	fi
+# fi
+# }
+#
+# IS_NUM() {
+# if ! [[ $1 =~ ^[0-9]+$ ]]; then
+# 	echo "Not a valid number or option"
+# 	sleep 1
+# 	continue
+# fi
+# }
+#
+# IS_GREATER() {
+# if [ $1 -gt $2 ]; then
+# 	echo "Not a valid number or option"
+# 	sleep 1
+# 	continue
+# fi
+# }
+#
+# IS_ZERO() {
+# if [ $1 -eq 0 ]; then
+# 	echo "Can not be 0"
+# 	sleep 1
+# 	continue
+# fi
+# }
+#
+# NA() {
+# echo "Not a valid option"
+# sleep 1
+# continue
+# }
+#
+# SEARCH_BR() {
+# if [ "$1" == s ]; then
+# 	read -p "Search for? >> " SEARCH 2>&1
+# 	break
+# fi
+# }
+#
+# SEARCH_CONT() {
+# if [ "$1" == s ]; then
+# 	read -p "Search for? >> " SEARCH 2>&1
+# 	continue
+# fi
+# }
+#
+# IS_RANGE() {
+# if [ $1 == r ]; then
+# 	RANGE "$2"
+# 	continue
+# fi
+# }
+#
+# IS_ALL() {
+# if [ "$1" == a ]; then
+# 	BATCH "$2" "$3" "$4"
+# 	continue
+# fi
+# }
+#
 ###################### SECONDARY FUNCTIONS #########################
 GET() {
 # Accepts 2 args: url or stdin and file or stdout
@@ -352,10 +351,34 @@ do
 	echo "$TITLES" | awk '{print NR, $0}' | column
 	read -p "Found $R_COUNT results containing the word(s): $SEARCH. Type a number to select a series and press enter. (s) to search again. (q) to quit. >> " EP 2>&1
 	QUIT $EP
-	SEARCH_CONT $EP
-	IS_NUM $EP
-	IS_GREATER $EP $R_COUNT
-	IS_ZERO $EP
+
+	# SEARCH_CONT $EP
+  if [ "$EP" == s ]; then
+    read -p "Search for? >> " SEARCH 2>&1
+    continue
+  fi
+
+	# IS_NUM $EP
+  if ! [[ $EP =~ ^[0-9]+$ ]]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_GREATER $EP $R_COUNT
+  if [ $EP -gt $R_COUNT ]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_ZERO $EP
+  if [ $EP -eq 0 ]; then
+    echo "Can not be 0"
+    sleep 1
+    continue
+  fi
+
 	EP_PAGE=$(echo "$LINKS" | sed -n "$EP"p | GET - -)
 	EP_LINKS=$(echo "$EP_PAGE"\
 		| grep -i "leaf"\
@@ -388,13 +411,48 @@ do
 	R_COUNT=$(echo "$1" | wc -l)
 	echo "$2" | awk '{print NR, $0}' | more 2>&1
 	read -p "Select an episode, (a) to download all, (r) to download range, (s) to make a new search, (q) to quit. >> " EP 2>&1
-	SEARCH_BR "$EP"
-	IS_ALL "$EP" 1 "$R_COUNT" "$1"
-	IS_RANGE $EP "$1"
+
+	# SEARCH_BR "$EP"
+  if [ "$EP" == s ]; then
+    read -p "Search for? >> " SEARCH 2>&1
+    break
+  fi
+
+	# IS_ALL "$EP" 1 "$R_COUNT" "$1"
+  if [ "$EP" == a ]; then
+    BATCH "1" "$R_COUNT" "$1"
+    continue
+  fi
+
+	# IS_RANGE $EP "$1"
+  if [ $EP == r ]; then
+    RANGE "$1"
+    continue
+  fi
+
 	QUIT $EP
-	IS_NUM $EP
-	IS_GREATER $EP $R_COUNT
-	IS_ZERO $EP
+
+	# IS_NUM $EP
+  if ! [[ $EP =~ ^[0-9]+$ ]]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_GREATER $EP $R_COUNT
+  if [ $EP -gt $R_COUNT ]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_ZERO $EP
+  if [ $EP -eq 0 ]; then
+    echo "Can not be 0"
+    sleep 1
+    continue
+  fi
+
 	PAGE=$(echo "$1" | sed -n "$EP"p | GET - -)
 	PAGE_SCRAPER "$PAGE"
 done
@@ -409,13 +467,53 @@ do
 	R_COUNT=$(echo "$1" | wc -l)
 	echo "$2" | awk '{print NR, $0}' | more 2>&1
 	read -p "Select an episode (1-50), (r) to download range, (n/p) next/previous 50 episodes, (q) to quit. >> " EP 2>&1
-	IS_NEXT $EP
-	IS_PREV $EP
-	IS_RANGE $EP "$1"
+
+	# IS_NEXT $EP
+  if [ $EP == n ]; then
+    PAGE_COUNT=$(expr $PAGE_COUNT + 1)
+    break
+  fi
+
+	# IS_PREV $EP
+  if [ $EP == p ]; then
+    PAGE_COUNT=$(expr $PAGE_COUNT - 1)
+    if [ $PAGE_COUNT -lt 0 ]; then
+      PAGE_COUNT=0
+      continue
+    else
+      break
+    fi
+  fi
+
+	# IS_RANGE $EP "$1"
+  if [ $EP == r ]; then
+    RANGE "$1"
+    continue
+  fi
+
 	QUIT $EP
-	IS_NUM $EP
-	IS_GREATER $EP $R_COUNT
-	IS_ZERO $EP
+
+	# IS_NUM $EP
+  if ! [[ $EP =~ ^[0-9]+$ ]]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_GREATER $EP $R_COUNT
+  if [ $EP -gt $R_COUNT ]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_ZERO $EP
+  if [ $EP -eq 0 ]; then
+    echo "Can not be 0"
+    sleep 1
+    continue
+  fi
+
 	PAGE=$(echo "$1" | sed -n "$EP"p | GET - -)
 	PAGE_SCRAPER "$PAGE"
 done
@@ -465,10 +563,33 @@ do
 			| awk '{print NR, $0}'
 		read -p "There are $M_COUNT mirrors for $TITLE Select a number and press enter, (b) to go back, (q) to quit. >> " M_NUM 2>&1
 		QUIT $M_NUM
-		BACK $M_NUM
-		IS_NUM $M_NUM
-		IS_ZERO $M_NUM
-		IS_GREATER $M_NUM $M_COUNT
+
+		# BACK $M_NUM
+    if [ $M_NUM == b ]; then
+      break
+    fi
+
+		# IS_NUM $M_NUM
+    if ! [[ $M_NUM =~ ^[0-9]+$ ]]; then
+      echo "Not a valid number or option"
+      sleep 1
+      continue
+    fi
+
+		# IS_ZERO $M_NUM
+    if [ $M_NUM -eq 0 ]; then
+      echo "Can not be 0"
+      sleep 1
+      continue
+    fi
+
+		# IS_GREATER $M_NUM $M_COUNT
+    if [ $M_NUM -gt $M_COUNT ]; then
+      echo "Not a valid number or option"
+      sleep 1
+      continue
+    fi
+
 		MIRROR=$(echo "$MIRRORS" | sed -n "$M_NUM"p)
 	fi
 	URL=$(MIRROR_FILTER "$MIRROR")
@@ -508,7 +629,12 @@ do
 			fi
 		fi
 		QUIT $CHOICE
-		BACK $CHOICE
+
+		# BACK $CHOICE
+    if [ $CHOICE == b ]; then
+      break
+    fi
+
 		if [ "$CHOICE" == s ]; then
 			if [ "$IS_SAFEUPLOAD" == safeupload ]; then
 				mkdir -p "$FILE_PATH"
@@ -530,7 +656,10 @@ do
 			fi
 			break
 		else
-			NA
+			# NA
+      echo "Not a valid option"
+      sleep 1
+      continue
 		fi
 	done
 	if [ $ERROR == "TRUE" ]; then
@@ -559,15 +688,61 @@ while :
 do
 	echo "Type (b) in either field to go back."
 	read -p "Download from:" START 2>&1
-	BACK $START
-	IS_NUM $START
-	IS_GREATER $START $R_COUNT
-	IS_ZERO $START
+
+	# BACK $START
+  if [ $START == b ]; then
+    break
+  fi
+
+	# IS_NUM $START
+  if ! [[ $START =~ ^[0-9]+$ ]]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_GREATER $START $R_COUNT
+  if [ $START -gt $R_COUNT ]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_ZERO $START
+  if [ $START -eq 0 ]; then
+    echo "Can not be 0"
+    sleep 1
+    continue
+  fi
+
 	read -p "To:" END 2>&1
-	BACK $END
-	IS_NUM $END
-	IS_GREATER $START $END
-	IS_ZERO $END
+
+	# BACK $END
+  if [ $END == b ]; then
+    break
+  fi
+
+	# IS_NUM $END
+  if ! [[ $END =~ ^[0-9]+$ ]]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_GREATER $START $END
+  if [ $START -gt $END ]; then
+    echo "Not a valid number or option"
+    sleep 1
+    continue
+  fi
+
+	# IS_ZERO $END
+  if [ $END -eq 0 ]; then
+    echo "Can not be 0"
+    sleep 1
+    continue
+  fi
+
 	BATCH $START $END "$1"
 	break
 done
