@@ -1,11 +1,12 @@
 animefreak-downloader
 ================
-Interactive shell script for downloading or viewing videos from animefreak.tv.
+Interactive script for viewing or downloading videos from animefreak.tv.
 
-Calling the script without arguments will list the latest uploaded videos.
-Append a search term after the command to "grep" the entire catalog of Animefreak.
-For example:
+Calling the script without arguments will list the latest uploaded
+videos. Append a search term after the command to \"grep\" the
+entire catalog. For example:
 
-	animefreak-downloader.sh monogatari 
+./afdl.sh full metal panic
 
-Wget needs to be intalled for the download part. mpv (optional) for viewing videos.
+wget needs to be intalled for downloading.
+mpv/vlc (optional) for viewing videos.
