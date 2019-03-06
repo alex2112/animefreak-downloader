@@ -63,6 +63,7 @@ get_latest_ep_titles() {
 		| grep -A 3 '<div class="dl-item">'\
 		| grep -A 1 href\
 		| sed 's/^.*">//'\
+		| tr -d '\r'\
 		| tr -d '\n'\
 		| sed 's/--/\n/g'\
 		| sed 's/[ ][ ][ ]*/ /g'
@@ -82,6 +83,7 @@ get_series_ep_titles() {
 	if [ -z "$line_num" ]; then line_num=1; fi
 	echo "$1"\
 		| tail -n+$line_num\
+		| tr -d '\r'\
 		| grep '<div class="epCheck ">' -A 6\
 		| grep -A 2 'http.*$'\
 		| sed 's/<a href.*//'\
@@ -120,6 +122,7 @@ get_ep_title() {
 
 get_ep_dir() {
 	echo "$1"\
+		| tr -d '\r'\
 		| grep -A 1 '<h3 class="ead-title">'\
 		| sed -n 2p\
 		| sed 's/[ ][ ][ ]*//g'
